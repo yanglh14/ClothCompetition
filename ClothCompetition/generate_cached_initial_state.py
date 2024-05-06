@@ -1,10 +1,10 @@
 import copy
 from softgym.registered_env import SOFTGYM_ENVS, env_arg_dict
-from VCD.main import get_default_args
+from ClothCompetition.main import get_default_args
 
 
 def create_env(args):
-    assert args.env_name == 'ClothFlatten'
+    # assert args.env_name == 'TshirtFlatten'
 
     env_args = copy.deepcopy(env_arg_dict[args.env_name])  # Default args
     env_args['cached_states_path'] = args.cached_states_path
@@ -13,7 +13,7 @@ def create_env(args):
     env_args['save_cached_states'] = True
 
     env_args['render'] = True
-    env_args['headless'] = False
+    env_args['headless'] = True
     env_args['render_mode'] = 'cloth' if args.gen_data else 'particle'
     env_args['camera_name'] = 'default_camera'
     env_args['camera_width'] = 360

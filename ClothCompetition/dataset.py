@@ -2,16 +2,16 @@ import os
 import scipy
 import numpy as np
 import torch
+import time
 
 from torch_geometric.data import Dataset
 
 import pyflex
 
-from VCD.utils.utils import downsample, load_data, load_data_list, store_h5_data, voxelize_pointcloud, pc_reward_model
-from VCD.utils.camera_utils import get_observable_particle_index, get_observable_particle_index_old, get_world_coords, get_observable_particle_index_3
-from VCD.utils.data_utils import PrivilData
+from ClothCompetition.utils.utils import downsample, load_data, load_data_list, store_h5_data, voxelize_pointcloud, pc_reward_model
+from ClothCompetition.utils.camera_utils import get_observable_particle_index, get_observable_particle_index_old, get_world_coords, get_observable_particle_index_3
+from ClothCompetition.utils.data_utils import PrivilData
 from softgym.utils.visualization import save_numpy_as_gif
-
 
 class ClothDataset(Dataset):
     def __init__(self, args, input_types, phase, env):
@@ -68,6 +68,7 @@ class ClothDataset(Dataset):
         position = pyflex.get_positions().reshape(-1, 4)[:, :3]
         picker_position = self.env.action_tool.get_picker_pos()
 
+
         # Cloth and picker information
         # Get partially observed particle index
         rgbd = self.env.get_rgbd(show_picker=False)
@@ -77,13 +78,12 @@ class ClothDataset(Dataset):
 
         # Old way of getting observable index
         downsample_observable_idx = get_observable_particle_index_old(world_coordinates, position[downsample_idx], rgb, depth)
-        # TODO Try new way of getting observable index
+        # # TODO Try new way of getting observable index
         # observable_idx = get_observable_particle_index(world_coordinates, position, rgb, depth)
-        observable_idx = []
-
         # all_idx = np.zeros(shape=(len(position)), dtype=np.int)
         # all_idx[observable_idx] = 1
         # downsample_observable_idx = np.where(all_idx[downsample_idx] > 0)[0]
+
         world_coords = world_coordinates[:, :, :3].reshape((-1, 3))
         pointcloud = world_coords[depth.flatten() > 0]
 
@@ -92,7 +92,7 @@ class ClothDataset(Dataset):
                'scene_params': scene_params,
                'downsample_idx': downsample_idx,
                'downsample_observable_idx': downsample_observable_idx,
-               'observable_idx': observable_idx,
+               'observable_idx': downsample_observable_idx,
                'pointcloud': pointcloud.astype(np.float32)}
         if self.args.gen_gif:
             ret['rgb'], ret['depth'] = rgb, depth
@@ -102,48 +102,354 @@ class ClothDataset(Dataset):
         np.random.seed(0)
         rollout_idx = 0
         while rollout_idx < self.n_rollout:
+            time_start = time.time()
             print("{} / {}".format(rollout_idx, self.n_rollout))
             rollout_dir = os.path.join(self.data_dir, str(rollout_idx))
             os.system('mkdir -p ' + rollout_dir)
             self.env.reset()
 
-            curr_data = self.get_curr_env_data()
-            observable_idx, picker_position, downsample_idx = curr_data['observable_idx'], curr_data['picker_position'], curr_data['downsample_idx']
-            pp = np.random.randint(len(observable_idx))
-            picker_position[0] = curr_data['positions'][observable_idx[pp]] + np.array(
-                [0., self.env.picker_radius + self.env.cloth_particle_radius, 0.])  # Pick above the particle
-            picker_position[1] = np.array([100, 100, 100])
-            self.env.action_tool.set_picker_pos(picker_position)
-
+            self._prepare_steps()
             prev_data = self.get_curr_env_data()  # Get new picker position
 
-            policy_info = self._generate_policy_info()
+            # policy_info = self._generate_policy_info()
             if self.args.gen_gif:
                 frames_rgb, frames_depth = [prev_data['rgb']], [prev_data['depth']]
-            for j in range(1, self.args.time_step):
+
+            # Calculate the goal positions of both pickers
+            ## First calculate the distance between two pickers
+            ## TODO: randomly select the stretching scale
+            picker_positions = prev_data["picker_position"]
+            pre_stretch_distance = 0.9 * np.linalg.norm(picker_positions[0] - picker_positions[1])
+            stretched_distance = 1.05 * np.linalg.norm(picker_positions[0] - picker_positions[1])
+            # Calculate the goal pre-stretch position of the pickers
+            goal_right_pre_stretch_pos = np.array([-0.4, 0.9, pre_stretch_distance/2.0])
+            goal_left_pre_stretch_pos = np.array([-0.4, 0.9, -pre_stretch_distance/2.0])
+
+            # Plan the trajectory for both pickers moving to pre stretch position
+            # they plan a small trajectory based on joint velocity and acceleration limit
+            # (this means they do not move to goal at a constant speed in reality)
+            pre_stretch_velocity = 0.2
+            _, num_steps_left = self._plan_linear_picker_motion(goal_left_pre_stretch_pos, pre_stretch_velocity, left=True)
+            _, num_steps_right = self._plan_linear_picker_motion(goal_right_pre_stretch_pos, pre_stretch_velocity, left=False)
+            # Choose the longer step
+            pre_stretch_steps = max(num_steps_left, num_steps_right)
+            delta_action_per_step_left_pre_stretch = self._plan_fixed_step_motion(goal_left_pre_stretch_pos, moving_steps=pre_stretch_steps, left=True)
+            delta_action_per_step_right_pre_stretch = self._plan_fixed_step_motion(goal_right_pre_stretch_pos, moving_steps=pre_stretch_steps, left=False)
+
+            # Plan the stretching trajectory
+            # we will stretch the cloth to 110% of the grasping distance
+            stretch_distance = stretched_distance - pre_stretch_distance
+            stretch_vel = 0.2
+            stretch_delta_action_right = np.array([0.0, 0.0, stretch_vel*self.dt])
+            stretch_delta_action_left = np.array([0.0, 0.0, -stretch_vel*self.dt])
+            stretch_steps = int(stretch_distance / (stretch_vel * self.dt))
+            
+            # the overall steps will be the larger one of the above
+            max_time_steps = pre_stretch_steps + stretch_steps + 10 # Extra 10 steps to ensure the pickers move to the exact position
+            
+            # data_list = []
+            for j in range(1, max_time_steps+1): # one more step to move the picker to the exact position
                 if not self._data_test(prev_data):
                     break
-                action = self._collect_policy(j, policy_info)
+
+                # Calculate the action of both pickers
+                current_picker_pos, _ = self.env.action_tool._get_pos()
+                if j < pre_stretch_steps + 1:
+                    # left picker in motion
+                    left_picker_delta_action = delta_action_per_step_left_pre_stretch
+
+                    # right picker in motion
+                    right_picker_delta_action = delta_action_per_step_right_pre_stretch 
+                elif j < pre_stretch_steps + 11:
+                    # Extra 10 steps to ensure the pickers move to the exact position
+                    left_picker_delta_action = goal_left_pre_stretch_pos - current_picker_pos[self._left_picker_index]
+                    right_picker_delta_action = goal_right_pre_stretch_pos - current_picker_pos[self._right_picker_index]
+                else:
+                    # Stretch the cloth
+                    left_picker_delta_action = stretch_delta_action_left
+                    right_picker_delta_action = stretch_delta_action_right
+
+                action = self._compose_dual_picker_action(delta_action_left=left_picker_delta_action,
+                                                          delta_action_right=right_picker_delta_action,
+                                                          enable_pick_left=True,
+                                                          enable_pick_right=True)
+
                 self.env.step(action)
                 curr_data = self.get_curr_env_data()
 
                 prev_data['velocities'] = (curr_data['positions'] - prev_data['positions']) / self.dt
                 prev_data['action'] = action
                 store_h5_data(self.data_names, prev_data, os.path.join(rollout_dir, str(j - 1) + '.h5'))
+                # data_list.append(prev_data)
                 prev_data = curr_data
                 if self.args.gen_gif:
                     frames_rgb.append(prev_data['rgb'])
                     frames_depth.append(prev_data['depth'])
-            if j < self.args.time_step - 1 or not self._data_test(curr_data):
+
+            if j < max_time_steps - 1 or not self._data_test(curr_data):
                 continue
+
+            # # Store the data
+            # for i, data in enumerate(data_list):
+            #     store_h5_data(self.data_names, data, os.path.join(rollout_dir, str(i) + '.h5'))
 
             if self.args.gen_gif:
                 save_numpy_as_gif(np.array(np.array(frames_rgb) * 255).clip(0., 255.), os.path.join(rollout_dir, 'rgb.gif'))
                 save_numpy_as_gif(np.array(frames_depth) * 255., os.path.join(rollout_dir, 'depth.gif'))
+
             # the last step has no action, and is not used in training
             prev_data['action'], prev_data['velocities'] = 0, 0
             store_h5_data(self.data_names, prev_data, os.path.join(rollout_dir, str(self.args.time_step - 1) + '.h5'))
+            print("Time elasped: ", round(time.time()-time_start, 1))
             rollout_idx += 1
+
+    def _prepare_steps(self):
+        self._picker_state = [0, 0] # Create picker state buffer
+
+        # Right arm lifting the cloth up and hanging it in the air
+        self._right_arm_cloth_lifting()
+
+        # Left arm picking up the lowest particle of the hanged cloth
+        # and then lifting it up 
+        self._left_arm_cloth_lifting()
+
+        # Right arm randomly selects an observable picking particle
+        rand_particle_pos = self._random_select_observable_particle_pos(condition="random", offset_direction=[-1.0, 0., 0.])
+        self._set_picker_pos(rand_particle_pos, left=False)
+        # Enable the right picker to pick the particle
+        self._move_picker(delta_position=np.array([0.0, 0.0, 0.0]), enable_pick=True, moving_steps=1, left=False)
+
+    def _right_arm_cloth_lifting(self):
+        '''The right arm will pick up the heighest particle, and lift it to position [0.0, 0.9, 0.0]'''
+        heighest_particle_pos = self._random_select_observable_particle_pos(num_candidates=3, condition="highest", offset_direction=[0., 1.0, 0.])
+        # Set right arm picker position to this heighest point
+        self._set_picker_pos(heighest_particle_pos, left=False)
+        # Set left arm picker far away now
+        self._set_picker_pos(np.array([100, 100, 100]), left=True)
+
+        # Let the right arm pick up the heighest particle
+        self._move_picker_to_goal(goal_position=np.array([0.0, 0.9, 0.0]), linear_vel=0.2, enable_pick=True, left=False)    
+
+        # Wait for a few seconds for the cloth to be still
+        self._wait_until_stable(max_wait_step=200, stable_vel_threshold=0.2)
+
+    def _left_arm_cloth_lifting(self):
+        '''The left arm will grasp the lowest particle, and lift it up to [0.0, 0.9, 0.0]'''
+        # Randomly select the lowest particle
+        lowest_particle_pos = self._random_select_observable_particle_pos(num_candidates=3, condition="lowest", offset_direction=[-1., 0., 0.])
+        # Set left arm picker position to this lowest point
+        self._set_picker_pos(lowest_particle_pos, left=True)
+
+        # Move the left picker a little bit to the behind
+        self._move_picker(delta_position=np.array([-0.1, 0.0, 0.0]), enable_pick=True, moving_steps=50, left=True)
+
+        # Let the right picker release the cloth
+        self._move_picker(delta_position=0.0, enable_pick=False, moving_steps=10, left=False)
+        # Move the right picker a little bit to the right
+        self._move_picker(delta_position=np.array([0.0, 0.0, 0.5]), enable_pick=False, moving_steps=10, left=False)
+
+        # Wait for a few seconds for the cloth to be still
+        self._wait_until_stable(max_wait_step=200, stable_vel_threshold=0.2)
+
+        # Let the left picker go to [0.0, 0.9, 0.0]
+        self._move_picker_to_goal(goal_position=np.array([0.0, 0.9, 0.0]), linear_vel=0.2, enable_pick=True, left=True)  
+
+        # Wait for a few seconds for the cloth to be still
+        self._wait_until_stable(max_wait_step=500, stable_vel_threshold=0.2)
+
+    @property
+    def _left_picker_index(self):
+        return 1
+    
+    @property
+    def _right_picker_index(self):
+        return 0
+    
+    def _set_picker_state(self, picking, left=False):
+        '''set picker state (picking or unpicking)'''
+        if left:
+            self._picker_state[self._left_picker_index] = picking
+        else:
+            self._picker_state[self._right_picker_index] = picking
+
+    def _get_picker_state(self, left=False):
+        return self._picker_state[self._left_picker_index] if left else self._picker_state[self._right_picker_index]
+    
+    def _picker_index(self, left=False):
+        if left:
+            return self._left_picker_index
+        else:
+            return self._right_picker_index
+
+    def _set_picker_pos(self, position, left=False):
+        '''Set picker to position for a specific picker (left or right)
+
+        Args:
+            position (np.array): 3D position of the picker
+            left (bool): Whether the picker is the left picker (0 for right picker, 1 for left picker)
+        '''
+        current_picker_pos, _ = self.env.action_tool._get_pos()
+        current_picker_pos[self._picker_index(left)] = position
+        self.env.action_tool.set_picker_pos(current_picker_pos)
+
+    def _plan_linear_picker_motion(self, goal_position, linear_vel=0.2, left=False):
+        '''Calculate delta linear motion for the picker to reach the goal position
+
+        Args:
+            goal_position (np.array): 3D position of the goal
+            linear_vel (float): Linear velocity of the picker
+            left (bool): Whether the picker is the left picker (0 for right picker, 1 for left picker)
+        '''
+        current_picker_pos, _ = self.env.action_tool._get_pos()
+        # Caculate the moving direction
+        goal_error_position = goal_position - current_picker_pos[self._picker_index(left)]
+        goal_error_distance = np.linalg.norm(goal_error_position)
+        moving_direction = goal_error_position / goal_error_distance
+        # Calculate the moving distance
+        moving_distance_per_step = linear_vel * self.dt
+        # Calculate delta action per step (delta position)
+        delta_action_per_step = moving_distance_per_step * moving_direction
+        # Calculate the steps needed to reach goal
+        steps_to_goal = int(goal_error_distance / moving_distance_per_step)
+
+        return delta_action_per_step, steps_to_goal
+    
+    def _plan_fixed_step_motion(self, goal_position, moving_steps=50, left=False):
+        '''Calculate delta action for the picker to reach the goal position with fixed steps
+
+        Args:
+            goal_position (np.array): 3D position of the goal
+            moving_steps (int): Number of steps to move the picker
+            left (bool): Whether the picker is the left picker (0 for right picker, 1 for left picker)
+        '''
+        current_picker_pos, _ = self.env.action_tool._get_pos()
+        # Caculate the moving direction
+        goal_error_position = goal_position - current_picker_pos[self._picker_index(left)]
+        goal_error_distance = np.linalg.norm(goal_error_position)
+        moving_direction = goal_error_position / goal_error_distance
+        # Calculate the moving distance
+        moving_distance_per_step = goal_error_distance / moving_steps
+        # Calculate delta action per step (delta position)
+        delta_action_per_step = moving_distance_per_step * moving_direction
+
+        return delta_action_per_step
+    
+    def _move_picker_to_goal(self, goal_position, linear_vel=0.2, enable_pick=True, left=False):
+        '''Move the picker to the goal position linearly with a constant speed
+
+        Args:
+            goal_position (np.array): 3D position of the goal
+            linear_vel (float): Linear velocity of the picker
+            left (bool): Whether the picker is the left picker (0 for right picker, 1 for left picker)
+        '''
+        delta_action_per_step, steps_to_goal = self._plan_linear_picker_motion(goal_position, linear_vel, left)
+        for _ in range(0, steps_to_goal + 1):
+            # Move the picker to the goal position linearly with a constant speed
+            action = self._compose_picker_action(delta_action_per_step, enable_pick=enable_pick, left=left)
+            self.env.step(action)
+        
+        # Set the picker to goal position to ensure the picker reached the goal position
+        self._set_picker_pos(goal_position, left)
+
+    def _move_picker(self, delta_position, enable_pick=True, moving_steps=50, left=False):
+        '''Move the picker by delta position at a constant speed
+
+        Args:
+            delta_position (np.array): 3D position of the goal
+            enable_pick (bool): Whether the picker is in picking mode
+            moving_period (int): Number of steps to move the picker
+            left (bool): Whether the picker is the left picker (0 for right picker, 1 for left picker)
+        '''
+        delta_position_per_step = delta_position / moving_steps
+        for _ in range(moving_steps):
+            # Move the picker to the goal position
+            action = self._compose_picker_action(delta_position_per_step, enable_pick=enable_pick, left=left)
+            self.env.step(action)
+
+    def _compose_picker_action(self, delta_action, enable_pick=False, left=False):
+        action = np.zeros_like(self.env.action_space.sample())
+        if left:
+            action[4:7] = delta_action
+            if enable_pick:
+                action[7] = 1
+                self._set_picker_state(1, left=True)
+            else:
+                self._set_picker_state(0, left=True)
+
+            # For another picker, keep it as it is
+            action[3] = self._get_picker_state(left=False)
+        else:
+            action[:3] = delta_action
+            if enable_pick:
+                action[3] = 1
+                self._set_picker_state(1, left=False)
+            else:
+                self._set_picker_state(0, left=False)
+
+            # For another picker, keep it as it is
+            action[7] = self._get_picker_state(left=True)
+
+        return action
+    
+    def _compose_dual_picker_action(self, delta_action_left, delta_action_right, enable_pick_left=False, enable_pick_right=False):
+        action = np.zeros_like(self.env.action_space.sample())
+        # Set picker action
+        action[:3] = delta_action_right
+        action[4:7] = delta_action_left
+        # Enable or disable picking
+        action[3] = 1 if enable_pick_right else 0
+        action[7] = 1 if enable_pick_left else 0
+        # Set picker state
+        self._set_picker_state(1 if enable_pick_left else 0, left=True)
+        self._set_picker_state(1 if enable_pick_right else 0, left=False)
+        return action
+
+    def _random_select_observable_particle_pos(self, num_candidates=3, condition:str = "lowest", offset_direction=[0., 1.0, 0.]):
+        '''Randomly select observable pickles based on the condition
+
+        Args:
+            num_candidates (int): Number of candidates to select, only applicable when condition is "lowest" or "highest"
+            condition (str): Condition to select the pickles, available options are "lowest", "highest", and "random"
+            offset_direction (np.array): Offset direction for the picker to pick the particle
+        '''
+        assert condition in ["lowest", "highest", "random"], "Invalid condition"
+
+        # Get observable particle indices
+        curr_data = self.get_curr_env_data()
+        observable_idx = curr_data['observable_idx']
+
+        if condition == "lowest" or condition == "highest":
+            observable_heights = curr_data['positions'][observable_idx, 1]
+            if condition == "lowest":
+                candidates = observable_idx[np.argpartition(observable_heights, num_candidates, axis=0)[:num_candidates]]
+            else:
+                candidates = observable_idx[np.argpartition(observable_heights, -num_candidates)[-num_candidates:]]
+            # Randomly select one candidate
+            rand_choise = np.random.choice(candidates)
+        else:
+            # Just randomly select from all observable indices
+            rand_choise = np.random.randint(len(observable_idx))
+        
+        picker_offset = self.env.picker_radius + self.env.cloth_particle_radius
+        return curr_data['positions'][rand_choise] + np.array(offset_direction) * picker_offset
+    
+    def _wait_until_stable(self, max_wait_step=100, stable_vel_threshold=1e-3):
+        '''Wait until the cloth is stable
+
+        Args:
+            max_wait_step (int): Maximum number of steps to wait
+            stable_vel_threshold (float): Velocity threshold to determine if the cloth is stable
+        '''
+        for j in range(0, max_wait_step):
+            curr_vel = pyflex.get_velocities()
+            action = np.zeros_like(self.env.action_space.sample())
+            # Keep the picker state as it is
+            action[3] = self._get_picker_state(left=False)
+            action[7] = self._get_picker_state(left=True)
+            self.env.step(action)
+            if np.alltrue(np.abs(curr_vel) < stable_vel_threshold) and j > 5:
+                break
+        print("[Warning] Cloth is not stable after {} steps".format(max_wait_step))
 
     def build_graph(self, data, input_type, robot_exp=False):
         """
@@ -190,6 +496,7 @@ class ClothDataset(Dataset):
             delta_move = policy_info['delta_move']
             action = np.zeros_like(self.env.action_space.sample())
             action[3] = 1
+            action[7] = 1 # Let the left picker always hold the cloth
             action[:3] = delta_move * policy_info['move_direction']
         else:
             action = np.zeros_like(self.env.action_space.sample())

@@ -2,24 +2,24 @@ import os.path as osp
 import json
 import argparse
 
-from VCD.utils.utils import vv_to_args, set_resource
+from ClothCompetition.utils.utils import vv_to_args, set_resource
 import copy
-from VCD.vc_dynamics import VCDynamics
-from VCD.vc_edge import VCConnection
+from ClothCompetition.vc_dynamics import VCDynamics
+from ClothCompetition.vc_edge import VCConnection
 from chester import logger
-from VCD.utils.utils import configure_logger, configure_seed
+from ClothCompetition.utils.utils import configure_logger, configure_seed
 import pyflex
 
 def get_default_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--exp_name', type=str, default='test', help='Name of the experiment')
-    parser.add_argument('--log_dir', type=str, default='data/dyn_debug/', help='Logging directory')
+    parser.add_argument('--exp_name', type=str, default='base', help='Name of the experiment')
+    parser.add_argument('--log_dir', type=str, default='./data/base/', help='Logging directory')
     parser.add_argument('--seed', type=int, default=100)
 
     # Env
-    parser.add_argument('--env_name', type=str, default='ClothFlatten')
+    parser.add_argument('--env_name', type=str, default='ClothCompFlatten')
     parser.add_argument('--cached_states_path', type=str, default='cached_states.pkl')
-    parser.add_argument('--num_variations', type=int, default=1)
+    parser.add_argument('--num_variations', type=int, default=100)
     parser.add_argument('--partial_observable', type=bool, default=True, help="Whether only the partial point cloud can be observed")
     parser.add_argument('--particle_radius', type=float, default=0.00625, help='Particle radius for the cloth')
     ## pyflex shape state
@@ -31,9 +31,9 @@ def get_default_args():
     parser.add_argument('--dt', type=float, default=1. / 100.)
     parser.add_argument('--pred_time_interval', type=int, default=5, help='Interval of timesteps between each dynamics prediction (model dt)')
     parser.add_argument('--train_valid_ratio', type=float, default=0.9, help="Ratio between training and validation")
-    parser.add_argument('--dataf', type=str, default='./data/release/', help='Path to dataset')
+    parser.add_argument('--dataf', type=str, default='./data/base/', help='Path to dataset')
     parser.add_argument('--gen_data', type=int, default=0, help='Whether to generate dataset')
-    parser.add_argument('--gen_gif', type=bool, default=1, help='Whether to also save gif of each trajectory (for debugging)')
+    parser.add_argument('--gen_gif', type=bool, default=0, help='Whether to also save gif of each trajectory (for debugging)')
 
     # Model
     parser.add_argument('--global_size', type=int, default=128, help="Number of hidden nodes for global in GNN")
@@ -93,7 +93,7 @@ def get_default_args():
 def create_env(args):
     from softgym.registered_env import env_arg_dict
     from softgym.registered_env import SOFTGYM_ENVS
-    # assert args.env_name == 'ClothFlatten'
+    # assert args.env_name == 'ClothCompFlatten'
 
     env_args = copy.deepcopy(env_arg_dict[args.env_name])  # Default args
     env_args['cached_states_path'] = args.cached_states_path
@@ -115,7 +115,6 @@ def create_env(args):
         env_args['observation_mode'] = 'cam_rgb'
 
     return SOFTGYM_ENVS[args.env_name](**env_args)
-
 
 def main():
     set_resource()  # To avoid pin_memory issue
