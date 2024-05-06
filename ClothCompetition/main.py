@@ -64,12 +64,12 @@ def get_default_args():
     parser.add_argument('--beta1', type=float, default=0.9)
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--fixed_lr', type=bool, default=False, help='By default, decaying lr is used.')
-    parser.add_argument('--batch_size', type=int, default=16)
+    parser.add_argument('--batch_size', type=int, default=12)
     parser.add_argument('--cuda_idx', type=int, default=0)
     parser.add_argument('--num_workers', type=int, default=10, help='Number of workers for dataloader')
     parser.add_argument('--eval', type=int, default=0, help='Whether to just evaluating the model')
-    parser.add_argument('--nstep_eval_rollout', type=int, default=20, help='Number of rollout trajectory for evaluation')
-    parser.add_argument('--save_model_interval', type=int, default=5, help='Save the model every N epochs during training')
+    parser.add_argument('--nstep_eval_rollout', type=int, default=5, help='Number of rollout trajectory for evaluation')
+    parser.add_argument('--save_model_interval', type=int, default=1, help='Save the model every N epochs during training')
     parser.add_argument('--use_wandb', type=bool, default=False, help='Use weight and bias for logging')
 
     # For graph imitation
@@ -100,13 +100,13 @@ def create_env(args):
     env_args['num_variations'] = args.num_variations
 
     env_args['render'] = True
-    env_args['headless'] = False
+    env_args['headless'] = True
     env_args['render_mode'] = 'cloth' if args.gen_data else 'particle'
     env_args['camera_name'] = 'default_camera'
     env_args['camera_width'] = 360
     env_args['camera_height'] = 360
 
-    env_args['num_picker'] = 2  # The extra picker is hidden and does not really matter
+    env_args['num_picker'] = 2
     env_args['picker_radius'] = 0.01
     env_args['picker_threshold'] = 0.00625
     env_args['action_repeat'] = 1

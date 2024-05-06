@@ -20,8 +20,32 @@ class ClothDataset(Dataset):
         self.args = args
         self.phase = phase
         self.env = env
+        self.args.num_picker =2 # number of pickers
         if self.args.dataf is not None:
             self.data_dir = os.path.join(self.args.dataf, phase)
+            os.system('mkdir -p ' + self.data_dir)
+
+            ## list all directories in the data_dir and count the data in each directory
+            self.all_rollouts = os.listdir(self.data_dir)
+            if len(self.all_rollouts) is not 0:
+                if 'mid_steps.npy' in self.all_rollouts:
+                    self.all_rollouts.pop(self.all_rollouts.index('mid_steps.npy'))
+                self.all_rollouts = sorted(self.all_rollouts, key=lambda x: int(x))
+                self.num_traj = len(self.all_rollouts)
+
+                rollout_lengths, self.rollout_steps = [],[]
+                for rollout_num in self.all_rollouts:
+                    rollout_dir = os.path.join(self.data_dir, rollout_num)
+
+                    # count the number of data in each rollout if the first character is a digit
+                    rollout_data = [data for data in os.listdir(rollout_dir) if data[0].isdigit()]
+                    rollout_lengths.append(len(rollout_data) - self.args.pred_time_interval)
+                    self.rollout_steps.append(len(rollout_data))
+
+                self.cumulative_lengths = np.cumsum(rollout_lengths)
+            else:
+                self.cumulative_lengths=[0]
+
         else:
             self.data_dir = None
         # self.num_workers = args.num_workers
@@ -54,7 +78,7 @@ class ClothDataset(Dataset):
                            'observable_idx',  # Indexes of the observed particles
                            'pointcloud']  # point cloud position by back-projecting the depth image
         self.vcd_edge = None
-
+        self.skipped =0
     def get_curr_env_data(self):
         # Env info that does not change within one episode
         config = self.env.get_current_config()
@@ -829,8 +853,14 @@ class ClothDataset(Dataset):
         """
         pred_time_interval = self.args.pred_time_interval
         while True:
-            idx_rollout = (idx // (self.args.time_step - self.args.n_his)) % self.n_rollout
-            idx_timestep = max((self.args.n_his - pred_time_interval) + idx % (self.args.time_step - self.args.n_his), 0)
+            idx_rollout = next(i for i, total in enumerate(self.cumulative_lengths) if total > idx)
+            if idx_rollout > 0:
+                idx_timestep = idx - self.cumulative_lengths[idx_rollout - 1]
+            else:
+                idx_timestep = idx
+
+            # idx_rollout = (idx // (self.args.time_step - self.args.n_his)) % self.n_rollout
+            # idx_timestep = max((self.args.n_his - pred_time_interval) + idx % (self.args.time_step - self.args.n_his), 0)
 
             data_cur = load_data(self.data_dir, idx_rollout, idx_timestep, self.data_names)
             data_nxt = load_data(self.data_dir, idx_rollout, idx_timestep + pred_time_interval, self.data_names)
@@ -842,18 +872,28 @@ class ClothDataset(Dataset):
             if len(vox_pc) <= len(partial_particle_pos):
                 break
             else:
+                break
                 idx += 1 if not eval else self.args.time_step - self.args.n_his
+                self.skipped += 1
+                print('Skip idx_rollout: {}, idx_timestep: {}, vox_pc len:{}, partical pos:{}, skipped:{}'.format(idx_rollout, idx_timestep, len(vox_pc), len(partial_particle_pos),self.skipped))
+
+        # # accumulate action if we need to predict multiple steps
+        # action = data_cur['action']
+        # for t in range(1, pred_time_interval):
+        #     t_action = load_data_list(self.data_dir, idx_rollout, idx_timestep + t, ['action'])[0]
+        #     # TODO: pass it if picker drops in the middle
+        #     action[:3] += t_action[:3]
 
         # accumulate action if we need to predict multiple steps
-        action = data_cur['action']
-        for t in range(1, pred_time_interval):
-            t_action = load_data_list(self.data_dir, idx_rollout, idx_timestep + t, ['action'])[0]
-            # TODO: pass it if picker drops in the middle
-            action[:3] += t_action[:3]
+        action = np.ones(4 * self.args.num_picker)
+
+        for i in range(self.args.num_picker):
+            action[i*4:i*4+3] = data_nxt['picker_position'][i,:3] - data_cur['picker_position'][i,:3]
+
 
         # Use clean observable point cloud for bi-partite matching
         # particle_pc_mapped_idx: For each point in pc, give the index of the closest point on the visible downsample mesh
-        _, partial_pc_mapped_idx = get_observable_particle_index_3(vox_pc, partial_particle_pos, threshold=self.args.voxel_size)
+        vox_pc, partial_pc_mapped_idx = get_observable_particle_index_3(vox_pc, partial_particle_pos, threshold=self.args.voxel_size)
         partial_pc_mapped_idx = data_cur['downsample_observable_idx'][
             partial_pc_mapped_idx]  # Map index from the observable downsampled mesh to the downsampled mesh
         # TODO Later try this new way
@@ -867,12 +907,18 @@ class ClothDataset(Dataset):
         downsample_idx = data_cur['downsample_idx']
         full_pos_cur, full_pos_nxt = data_cur['positions'], data_nxt['positions']
         full_pos_list, full_vel_list = [], []
+
+        # when i minus 0, it will be 0, the interval will not be pred_time_interval; 0.1 incase pred_time_interval is 0
+        time_interval = [max(1,min(i,pred_time_interval)) for i in range(idx_timestep - (self.args.n_his * (pred_time_interval)), idx_timestep + pred_time_interval*2, pred_time_interval)]
+
         for i in range(idx_timestep - self.args.n_his * pred_time_interval, idx_timestep, pred_time_interval):  # Load history data
             t_positions = load_data_list(self.data_dir, idx_rollout, max(0, i), ['positions'])[0]  # max just in case
             full_pos_list.append(t_positions)
         full_pos_list.extend([full_pos_cur, full_pos_nxt])
+
         # Finite difference
-        for i in range(self.args.n_his + 1): full_vel_list.append((full_pos_list[i + 1] - full_pos_list[i]) / (self.args.dt * pred_time_interval))
+        # for i in range(self.args.n_his + 1): full_vel_list.append((full_pos_list[i + 1] - full_pos_list[i]) / (self.args.dt * pred_time_interval))
+        for i in range(self.args.n_his + 1): full_vel_list.append((full_pos_list[i + 1] - full_pos_list[i]) / (self.args.dt * time_interval[i+1] ))
 
         # Get velocity history, remove target velocity (last one)
         full_vel_his = full_vel_list[:-1]
@@ -953,7 +999,7 @@ class ClothDataset(Dataset):
         return new_data
 
     def __len__(self):
-        return self.n_rollout * (self.args.time_step - self.args.n_his)
+        return self.cumulative_lengths[-1]
 
     def __getitem__(self, idx):
         all_input = {}

@@ -52,16 +52,24 @@ def voxelize_pointcloud(pointcloud, voxel_size):
 from softgym.utils.misc import vectorized_range, vectorized_meshgrid
 
 
-def pc_reward_model(pos, cloth_particle_radius=0.00625, downsample_scale=3):
+def pc_reward_model(pos, cloth_particle_radius=0.00625, downsample_scale=3, axis='z'):
+    if axis == 'z':
+        axis_x= 0
+        axis_y = 2
+    elif axis == 'x':
+        axis_x = 1
+        axis_y = 2
+    else:
+        raise NotImplementedError
     cloth_particle_radius *= downsample_scale
     pos = np.reshape(pos, [-1, 3])
-    min_x = np.min(pos[:, 0])
-    min_y = np.min(pos[:, 2])
-    max_x = np.max(pos[:, 0])
-    max_y = np.max(pos[:, 2])
+    min_x = np.min(pos[:, axis_x])
+    min_y = np.min(pos[:, axis_y])
+    max_x = np.max(pos[:, axis_x])
+    max_y = np.max(pos[:, axis_y])
     init = np.array([min_x, min_y])
     span = np.array([max_x - min_x, max_y - min_y]) / 100.
-    pos2d = pos[:, [0, 2]]
+    pos2d = pos[:, [axis_x, axis_y]]
 
     offset = pos2d - init
     slotted_x_low = np.maximum(np.round((offset[:, 0] - cloth_particle_radius) / span[0]).astype(int), 0)

@@ -3,5 +3,15 @@
 Reference Materials
 - Competition Website: https://airo.ugent.be/cloth_competition/
 - Github: https://github.com/Victorlouisdg/cloth-competition
+- VCD: https://github.com/Xingyu-Lin/VCD
 
 Detailed Notes can be found in Feishu. 
+
+
+
+
+
+
+
+
+

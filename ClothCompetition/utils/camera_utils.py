@@ -160,15 +160,26 @@ def get_observable_particle_index_old(world_coords, particle_pos, rgb, depth):
 
 
 def get_observable_particle_index_3(pointcloud, mesh, threshold=0.0216):
+    # ### bi-partite graph matching
+    # distance = scipy.spatial.distance.cdist(pointcloud, mesh)
+    # distance[distance > threshold] = 1e10
+    # row_idx, column_idx = opt.linear_sum_assignment(distance)
+    #
+    # distance_mapped = distance[np.arange(len(pointcloud)), column_idx]
+    # bad_mapping = distance_mapped > threshold
+    # if np.sum(bad_mapping) > 0:
+    #     column_idx[bad_mapping] = np.argmin(distance[bad_mapping], axis=1)
     ### bi-partite graph matching
     distance = scipy.spatial.distance.cdist(pointcloud, mesh)
-    distance[distance > threshold] = 1e10
-    row_idx, column_idx = opt.linear_sum_assignment(distance)
+    if pointcloud.shape[0] > mesh.shape[0]:
+        column_idx = np.argmin(distance, axis=1)
+    else:
+        distance[distance > threshold] = 1e10
+        row_idx, column_idx = opt.linear_sum_assignment(distance)
 
     distance_mapped = distance[np.arange(len(pointcloud)), column_idx]
-    bad_mapping = distance_mapped > threshold
-    if np.sum(bad_mapping) > 0:
-        column_idx[bad_mapping] = np.argmin(distance[bad_mapping], axis=1)
+    pointcloud = pointcloud[distance_mapped < threshold]
+    column_idx = column_idx[distance_mapped < threshold]
 
     return pointcloud, column_idx
 
