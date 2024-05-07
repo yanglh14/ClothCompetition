@@ -827,12 +827,18 @@ class ClothDataset(Dataset):
 
     def load_rollout_data(self, idx_rollout, idx_timestep):
         data_cur = load_data(self.data_dir, idx_rollout, idx_timestep, self.data_names)
+        data_nxt = load_data(self.data_dir, idx_rollout, idx_timestep + self.args.pred_time_interval, self.data_names)
+
         # accumulate action if we need to predict multiple steps
         action = data_cur['action']
-        for t in range(1, self.args.pred_time_interval):
-            t_action = load_data_list(self.data_dir, idx_rollout, idx_timestep + t, ['action'])[0]
-            # TODO: pass it if picker drops in the middle
-            action[:3] += t_action[:3]
+        # for t in range(1, self.args.pred_time_interval):
+        #     t_action = load_data_list(self.data_dir, idx_rollout, idx_timestep + t, ['action'])[0]
+        #     # TODO: pass it if picker drops in the middle
+        #     action[:3] += t_action[:3]
+
+        for i in range(self.args.num_picker):
+            action[i*4:i*4+3] = data_nxt['picker_position'][i,:3] - data_cur['picker_position'][i,:3]
+
         data_cur['action'] = action
         data_cur['gt_reward_crt'] = pc_reward_model(data_cur['positions'][data_cur['downsample_idx']])
         return data_cur
@@ -1027,3 +1033,12 @@ class ClothDataset(Dataset):
 
     def get(self, idx):
         return self.__getitem__(idx)
+
+    def traj_id_to_idx(self, traj_id):
+        if traj_id >= self.num_traj:
+            raise ValueError('traj_id should be less than num_traj')
+
+        if traj_id >0:
+            return self.cumulative_lengths[traj_id-1]
+        else:
+            return 0

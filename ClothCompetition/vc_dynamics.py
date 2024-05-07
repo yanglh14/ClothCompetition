@@ -98,8 +98,9 @@ class VCDynamics(object):
             self.load_epoch = 0
 
     def load_data_and_rollout(self, m_name, traj_id, phase):
-        idx = traj_id * (self.args.time_step - self.args.n_his)
         dataset = self.datasets[phase]
+        idx = dataset.traj_id_to_idx(traj_id)
+
         data = dataset.prepare_transition(idx, eval=True)
         data = dataset.remove_suffix(data, m_name)
         traj_id = data[
@@ -109,7 +110,9 @@ class VCDynamics(object):
         # load action sequences and true particle positions
         traj_particle_pos, actions, gt_rewards = [], [], []
         pred_time_interval = self.args.pred_time_interval
-        for t in range(max(0, self.args.n_his - pred_time_interval), self.args.time_step - pred_time_interval,
+        rollout_steps = dataset.rollout_steps[traj_id]
+
+        for t in range(0, (rollout_steps//pred_time_interval)*pred_time_interval - pred_time_interval,
                        pred_time_interval):
             t_data = dataset.load_rollout_data(traj_id, t)
             if m_name == 'vsbl':
@@ -133,8 +136,10 @@ class VCDynamics(object):
             pos_error = np.mean(np.linalg.norm(model_positions[i] - traj_particle_pos[i], axis=1))
             pos_errors.append(pos_error)
             reward_pred_errors.append((pred_rewards[i] - gt_pos_rewards[i]) ** 2)
-        reward_pred_error = np.mean(reward_pred_errors)  # measure only reward prediction error
-        planning_error = (pred_rewards[-1] - gt_rewards[-1]) ** 2  # measure predicted return error
+        # reward_pred_error = np.mean(reward_pred_errors)  # measure only reward prediction error
+        # planning_error = (pred_rewards[-1] - gt_rewards[-1]) ** 2  # measure predicted return error
+        reward_pred_error = 0 # not predict reward now
+        planning_error = 0
         return {'model_positions': model_positions,
                 'gt_positions': traj_particle_pos,
                 'shape_positions': shape_positions,
@@ -157,55 +162,55 @@ class VCDynamics(object):
                 epoch_infos = {m: AggDict(is_detach=True) for m in self.models}
 
                 epoch_len = len(self.dataloaders[phase])
-                for i, data in tqdm(enumerate(self.dataloaders[phase]), desc=f'Epoch {epoch}, phase {phase}'):
-                    data = data.to(self.device).to_dict()
-                    iter_infos = {m_name: AggDict(is_detach=False) for m_name in self.models}
-                    preds = {}
-                    last_global = torch.zeros(self.args.batch_size, self.args.global_size, dtype=torch.float32,
-                                              device=self.device)
-                    with torch.set_grad_enabled(phase == 'train'):
-                        for (m_name, model), iter_info in zip(self.models.items(), iter_infos.values()):
-                            inputs = self.retrieve_data(data, m_name)
-                            inputs['u'] = last_global
-                            pred = model(inputs)
-                            preds[m_name] = pred
-                            iter_info.add_item('accel_loss', self.mse_loss(pred['accel'], inputs['gt_accel']))
-                            iter_info.add_item('sqrt_accel_loss', torch.sqrt(iter_info['accel_loss']))
-                            if self.train_mode != 'vsbl':
-                                iter_info.add_item('reward_loss',
-                                                   self.mse_loss(pred['reward_nxt'].squeeze(), inputs['gt_reward_nxt']))
-
-                    if self.args.train_mode == 'graph_imit':  # Graph imitation
-                        iter_infos['vsbl'].add_item('imit_node_loss', self.mse_loss(preds['vsbl']['n_nxt'],
-                                                                                    preds['full']['n_nxt'].detach()))
-                        iter_infos['vsbl'].add_item('imit_lat_loss', self.mse_loss(preds['vsbl']['lat_nxt'],
-                                                                                   preds['full']['lat_nxt'].detach()))
-                    for m_name in self.models:
-                        iter_info = iter_infos[m_name]
-                        for feat in ['n_nxt', 'lat_nxt']:  # Node and global output
-                            iter_info.add_item(feat + '_norm', torch.norm(preds[m_name][feat], dim=1).mean())
-
-                        if self.args.train_mode == 'vsbl':  # Student loss
-                            iter_info.add_item('total_loss', iter_info['accel_loss'])
-                        elif self.args.train_mode == 'graph_imit' and m_name == 'vsbl':  # Student loss
-                            iter_info.add_item('imit_loss',
-                                               iter_info['imit_lat_loss'] * self.args.imit_w_lat + iter_info[
-                                                   'imit_node_loss'])
-                            iter_info.add_item('total_loss',
-                                               iter_info['accel_loss'] + self.args.imit_w * iter_info[
-                                                   'imit_loss'] +
-                                               + self.args.reward_w * iter_info['reward_loss'])
-                        else:  # Teacher loss or no graph imitation
-                            iter_info.add_item('total_loss',
-                                               iter_info['accel_loss'] + self.args.reward_w * iter_info['reward_loss'])
-
-                        if phase == 'train':
-                            if not (self.train_mode == 'graph_imit' and m_name == 'full' and not self.args.tune_teach):
-                                self.optims[m_name].zero_grad()
-                                iter_info['total_loss'].backward()
-                                self.optims[m_name].step()
-
-                        epoch_infos[m_name].update_by_add(iter_infos[m_name])  # Aggregate info
+                # for i, data in tqdm(enumerate(self.dataloaders[phase]), desc=f'Epoch {epoch}, phase {phase}'):
+                #     data = data.to(self.device).to_dict()
+                #     iter_infos = {m_name: AggDict(is_detach=False) for m_name in self.models}
+                #     preds = {}
+                #     last_global = torch.zeros(self.args.batch_size, self.args.global_size, dtype=torch.float32,
+                #                               device=self.device)
+                #     with torch.set_grad_enabled(phase == 'train'):
+                #         for (m_name, model), iter_info in zip(self.models.items(), iter_infos.values()):
+                #             inputs = self.retrieve_data(data, m_name)
+                #             inputs['u'] = last_global
+                #             pred = model(inputs)
+                #             preds[m_name] = pred
+                #             iter_info.add_item('accel_loss', self.mse_loss(pred['accel'], inputs['gt_accel']))
+                #             iter_info.add_item('sqrt_accel_loss', torch.sqrt(iter_info['accel_loss']))
+                #             if self.train_mode != 'vsbl':
+                #                 iter_info.add_item('reward_loss',
+                #                                    self.mse_loss(pred['reward_nxt'].squeeze(), inputs['gt_reward_nxt']))
+                #
+                #     if self.args.train_mode == 'graph_imit':  # Graph imitation
+                #         iter_infos['vsbl'].add_item('imit_node_loss', self.mse_loss(preds['vsbl']['n_nxt'],
+                #                                                                     preds['full']['n_nxt'].detach()))
+                #         iter_infos['vsbl'].add_item('imit_lat_loss', self.mse_loss(preds['vsbl']['lat_nxt'],
+                #                                                                    preds['full']['lat_nxt'].detach()))
+                #     for m_name in self.models:
+                #         iter_info = iter_infos[m_name]
+                #         for feat in ['n_nxt', 'lat_nxt']:  # Node and global output
+                #             iter_info.add_item(feat + '_norm', torch.norm(preds[m_name][feat], dim=1).mean())
+                #
+                #         if self.args.train_mode == 'vsbl':  # Student loss
+                #             iter_info.add_item('total_loss', iter_info['accel_loss'])
+                #         elif self.args.train_mode == 'graph_imit' and m_name == 'vsbl':  # Student loss
+                #             iter_info.add_item('imit_loss',
+                #                                iter_info['imit_lat_loss'] * self.args.imit_w_lat + iter_info[
+                #                                    'imit_node_loss'])
+                #             iter_info.add_item('total_loss',
+                #                                iter_info['accel_loss'] + self.args.imit_w * iter_info[
+                #                                    'imit_loss'] +
+                #                                + self.args.reward_w * iter_info['reward_loss'])
+                #         else:  # Teacher loss or no graph imitation
+                #             iter_info.add_item('total_loss',
+                #                                iter_info['accel_loss'] + self.args.reward_w * iter_info['reward_loss'])
+                #
+                #         if phase == 'train':
+                #             if not (self.train_mode == 'graph_imit' and m_name == 'full' and not self.args.tune_teach):
+                #                 self.optims[m_name].zero_grad()
+                #                 iter_info['total_loss'].backward()
+                #                 self.optims[m_name].step()
+                #
+                #         epoch_infos[m_name].update_by_add(iter_infos[m_name])  # Aggregate info
 
                 # rollout evaluation
                 nstep_eval_rollout = self.args.nstep_eval_rollout
@@ -233,7 +238,8 @@ class VCDynamics(object):
                         mesh_edges = traj_rollout_info['mesh_edges']
                         if mesh_edges is not None:  # Visualization of mesh edges on the predicted model
                             frames_edge_visual = copy.deepcopy(frames_model)
-                            matrix_world_to_camera = get_matrix_world_to_camera()[:3, :]  # 3 x 4
+                            matrix_world_to_camera = get_matrix_world_to_camera(self.env.camera_params[self.env.camera_name]['pos'],
+                                                                                self.env.camera_params[self.env.camera_name]['angle'])[:3, :]
                             for t in range(len(frames_edge_visual)):
                                 u, v = project_to_image(matrix_world_to_camera, traj_rollout_info['model_positions'][t])
                                 for edge_idx in range(mesh_edges.shape[1]):
