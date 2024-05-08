@@ -162,35 +162,42 @@ class Robot:
 
         return goal
 
-    def prepare_move_grasp_steps(self, posi, dt=10):
-        delta_y = 0.1
-        if len(posi) != 3:
-            raise ValueError("Position should be a 3D vector")
-
-        # change the goal euler angle to the quaternion
-        grasp_ori_quat = euler2quat(np.pi/2, 0, 0)
-
-        offset_piker = self.picker_to_ee_trans[2]
-        goal_position = self.transform_origin2base(posi) + [0, offset_piker, 0]
-        goals = FollowCartesianTrajectoryGoal()
-
-        # Create middle pose (ONLY for Right Arm)
-        point1 = CartesianTrajectoryPoint()
-        point1.pose = geometry_msgs.Pose(
-            geometry_msgs.Vector3(self.init_pose[0], self.init_pose[1]+delta_y, self.init_pose[2]),
-            geometry_msgs.Quaternion(self.init_pose[3], self.init_pose[4], self.init_pose[5], self.init_pose[6])
-        )
-        point1.time_from_start = 5
-        goals.trajectory.points.append(point1)
-
-        # Create goal pose
+    def convert2pose_base(self, POSI, QUAT, dt=10):
+        posi = self.transform_origin2base(POSI)
         point = CartesianTrajectoryPoint()
         point.pose = geometry_msgs.Pose(
-            geometry_msgs.Vector3(goal_position[0], goal_position[1], goal_position[2]),
-            geometry_msgs.Quaternion(grasp_ori_quat[0], grasp_ori_quat[1], grasp_ori_quat[2], grasp_ori_quat[3])
+            geometry_msgs.Vector3(posi[0], posi[1], posi[2]),
+            geometry_msgs.Quaternion(QUAT[0], QUAT[1], QUAT[2], QUAT[3])
         )
-        point.time_from_start = rospy.Duration(dt)
-        goals.trajectory.points.append(point)
+        point.time_from_start = dt
+        return point
+
+    def prepare_move_grasp_steps(self, goal_POSI, dt=10):
+        delta_y = 0.1
+        if len(goal_POSI) != 3:
+            raise ValueError("Position should be a 3D vector")
+
+        offset_piker = self.picker_to_ee_trans[2]
+
+        goals = FollowCartesianTrajectoryGoal()
+        # middle pose (base frame/ robot frame)
+        ## pt 1
+        midpt1_quat = euler2quat(np.pi/2, 0, 0)
+        midpt1_POSI = self.get_ee_pose_in_origin()[0] + np.array([0.05, 0, -offset_piker])
+        point1 = self.convert2pose_base(midpt1_POSI, midpt1_quat, 5)
+        goals.trajectory.points.append(point1)
+
+        ## pt 2
+        midpt2_quat = midpt1_quat
+        midpt2_POSI = midpt1_POSI + np.array([0, goal_POSI[1], goal_POSI[2]])
+        point2 = self.convert2pose_base(midpt2_POSI, midpt2_quat, 5)
+        goals.trajectory.points.append(point2)
+
+        ## pt 3: grasp pose
+        grasp_quat = midpt2_quat
+        grasp_POSI = midpt2_POSI + np.array([goal_POSI[1]-0.05, 0, 0])
+        point3 = self.convert2pose_base(grasp_POSI, grasp_quat, 5)
+        goals.trajectory.points.append(point3)
 
         return goals
 
