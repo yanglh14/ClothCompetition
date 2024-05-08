@@ -20,16 +20,18 @@ class Grasp:
         self.rs_listener = RSListener()
 
     def get_image(self):
+        if self.rs_listener.image is None:
+            time.sleep(0.1)
         return self.rs_listener.image
-
-    def get_mask(self):
-        self.mask = clothes_detection(self.image)
 
 
 if __name__ == '__main__':
-    grasp = Grasp()
-    image = grasp.get_image()
+    gp = Grasp()
+    gp.env.reset()
+    gp.env.gripper_close()
+    image = gp.get_image()
     mask = clothes_detection(image,'green_leaf')
+    # get the vox_pc of the mask
 
 
 
