@@ -99,7 +99,7 @@ def get_cloth_range(cloth_name):
 
 # for cloth competition's purpose
 def clothes_detection(image,cloth_name):
-
+    # TODO: find mash in the given area of the image
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     # save h,s,v three files
     # cv2.imwrite('../log/h_comp.png', hsv[:, :, 0])
