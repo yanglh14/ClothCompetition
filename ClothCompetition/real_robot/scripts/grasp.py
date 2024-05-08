@@ -75,20 +75,33 @@ if __name__ == '__main__':
     gp.env.gripper_close()
     gp.env.robot_right.set_gripper_open(True)
     print("Initialization finished")
+    print("init posi {rr}:", gp.env.robot_right.init_pose[0:3])
 
-    image = gp.get_image()
-    mask = clothes_detection(image,'green_leaf')
-    # cv2.imwrite('../log/mask_comp.png', mask)
-    ## get the vox_pc of the mask
-    cloth_pc = gp.rs_listener.get_pc_given_mask(mask)
-    print('cloth_pc:', cloth_pc.shape)
+    # image = gp.get_image()
+    # mask = clothes_detection(image,'green_leaf')
+    # # cv2.imwrite('../log/mask_comp.png', mask)
+    # ## get the vox_pc of the mask
+    # cloth_pc = gp.rs_listener.get_pc_given_mask(mask)
+    # # print('cloth_pc:', cloth_pc.shape)
+    #
+    # # sample a grasp position from the point cloud (world frame)
+    # grasp_posi = gp.sample_grasp_posi(cloth_pc)
+    # # grasp_posi = grasp_posi + np.array([0, 0.1, 0])
+    # grasp_posi_RR = gp.env.robot_right.transform_origin2base(grasp_posi) + gp.env.robot_right.picker_to_ee_trans
+    # print('grasp posi {RR}:', grasp_posi_RR)
 
-    # sample a grasp position from the point cloud
-    grasp_posi = gp.sample_grasp_posi(cloth_pc)
-    print('grasp_posi:', grasp_posi)
+    # goal position
+    # rospy.sleep(3)
+    temp = gp.env.robot_right.get_ee_pose_in_origin()[0]
+    print('cur posi {rr}:', gp.env.robot_right.transform_origin2base(temp))
+    goal_POSI = gp.env.robot_right.get_ee_pose_in_origin()[0] + np.array([0.1, 0, -0.165])
+    goal_posi_rr = gp.env.robot_right.transform_origin2base(goal_POSI)
+    print('goal posi {rr}:', goal_posi_rr)
 
-    ## move R arm to the grasp pose (with initial orientation)
-    gp.env.move_R_arm(grasp_posi)
+
+    ## move R arm to the grasp pose (with initial orientation)(world frame)
+    gp.env.move(goal_POSI, arm='right')
+    # gp.env.move_R_arm(grasp_posi)
     # gp.env.move_R_arm_steps(grasp_posi)
 
 
