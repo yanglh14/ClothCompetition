@@ -27,7 +27,7 @@ class Grasp:
         return self.rs_listener.image.copy()
 
     def sample_grasp_posi(self, pc):
-        z_offset = 0.1
+        z_offset = 0.3
         # set region of interest (roi)
         x = pc[:, 0]
         y = pc[:, 1]
@@ -61,6 +61,8 @@ if __name__ == '__main__':
     gp.env.reset()
     gp.env.gripper_close()
     gp.env.robot_right.set_gripper_open(True)
+    print("Initialization finished")
+
     image = gp.get_image()
     mask = clothes_detection(image,'green_leaf')
     # cv2.imwrite('../log/mask_comp.png', mask)
