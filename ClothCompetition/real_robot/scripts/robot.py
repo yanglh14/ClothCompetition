@@ -148,7 +148,7 @@ class Robot:
         grasp_ori_quat = euler2quat(np.pi/2, 0, 0)
 
         offset_piker = self.picker_to_ee_trans[2]
-        goal_position = self.transform_origin2base(posi) + [offset_piker, 0, 0]
+        goal_position = self.transform_origin2base(posi) + [0, offset_piker, 0]
         goal = FollowCartesianTrajectoryGoal()
 
         # Create initial pose
@@ -171,7 +171,7 @@ class Robot:
         grasp_ori_quat = euler2quat(np.pi/2, 0, 0)
 
         offset_piker = self.picker_to_ee_trans[2]
-        goal_position = self.transform_origin2base(posi) + [offset_piker, 0, 0]
+        goal_position = self.transform_origin2base(posi) + [0, offset_piker, 0]
         goals = FollowCartesianTrajectoryGoal()
 
         # Create middle pose (ONLY for Right Arm)
