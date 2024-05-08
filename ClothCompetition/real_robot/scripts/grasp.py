@@ -21,6 +21,14 @@ class Grasp:
         self.env = EnvReal()
         self.rs_listener = RSListener()
 
+        # def safe region (y-z plane) for Right Robot to grasp
+        offset_piker = self.env.robot_left.picker_to_ee_trans[2]
+        sr_mid_y = self.env.robot_left.init_pose[0]+offset_piker
+        sr_mid_Y = self.env.robot_left.robot_to_origin_trans[1]+sr_mid_y
+        sr_Y_max = sr_mid_Y + 0.08
+        sr_Y_min = sr_mid_Y - 0.08
+        self.Y_range = [sr_Y_min, sr_Y_max]
+
     def get_image(self):
         if self.rs_listener.image is None:
             time.sleep(0.1)
@@ -28,6 +36,7 @@ class Grasp:
 
     def sample_grasp_posi(self, pc):
         z_offset = 0.3
+        sr_Y_min, sr_Y_max = self.Y_range
         # set region of interest (roi)
         x = pc[:, 0]
         y = pc[:, 1]
@@ -41,9 +50,13 @@ class Grasp:
         # determine the region of target part
         z_roi_min = z_min + z_interval * (target_part - 1) / 4
         z_roi_max = z_min + z_interval * target_part / 4
-        print(f'z_roi: [{z_roi_min, z_roi_max}]')
+        # print(f'z_roi: [{z_roi_min, z_roi_max}]')
+
         # sample a point with z in [z_roi_min, z_roi_max]
-        idx_arr = np.where((z >= z_roi_min) & (z <= z_roi_max))[0]
+        # idx_arr = np.where((z >= z_roi_min) & (z <= z_roi_max))[0]
+
+        # sample a point with z in [z_roi_min, z_roi_max] and y in [sr_Y_min, sr_Y_max]
+        idx_arr = np.where((z >= z_roi_min) & (z <= z_roi_max) & (y >= sr_Y_min) & (y <= sr_Y_max))[0]
         if idx_arr is not None:
             # sample a point from idx_ls
             idx = np.random.choice(idx_arr)
@@ -72,6 +85,7 @@ if __name__ == '__main__':
 
     # sample a grasp position from the point cloud
     grasp_posi = gp.sample_grasp_posi(cloth_pc)
+    print('grasp_posi:', grasp_posi)
 
     ## move R arm to the grasp pose (with initial orientation)
     gp.env.move_R_arm(grasp_posi)
