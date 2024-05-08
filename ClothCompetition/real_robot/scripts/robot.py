@@ -140,6 +140,27 @@ class Robot:
 
         return goal
 
+    def prepare_move_grasp(self, posi, dt=10):
+        if len(posi) != 3:
+            raise ValueError("Position should be a 3D vector")
+
+        # change the goal euler angle to the quaternion
+        grasp_ori_quat = euler2quat(np.pi/2, 0, 0)
+
+        goal_position = self.transform_origin2base(posi) + self.picker_to_ee_trans
+        goal = FollowCartesianTrajectoryGoal()
+
+        # Create initial pose
+        point = CartesianTrajectoryPoint()
+        point.pose = geometry_msgs.Pose(
+            geometry_msgs.Vector3(goal_position[0], goal_position[1], goal_position[2]),
+            geometry_msgs.Quaternion(grasp_ori_quat[0], grasp_ori_quat[1], grasp_ori_quat[2], grasp_ori_quat[3])
+        )
+        point.time_from_start = rospy.Duration(dt)
+        goal.trajectory.points.append(point)
+
+        return goal
+
     def send_traj(self, goal, callback=None, wait_result=False):
 
         if wait_result:
