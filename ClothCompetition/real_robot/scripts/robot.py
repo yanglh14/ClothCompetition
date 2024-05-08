@@ -162,6 +162,38 @@ class Robot:
 
         return goal
 
+    def prepare_move_grasp_steps(self, posi, dt=10):
+        delta_y = 0.1
+        if len(posi) != 3:
+            raise ValueError("Position should be a 3D vector")
+
+        # change the goal euler angle to the quaternion
+        grasp_ori_quat = euler2quat(np.pi/2, 0, 0)
+
+        offset_piker = self.picker_to_ee_trans[2]
+        goal_position = self.transform_origin2base(posi) + [offset_piker, 0, 0]
+        goals = FollowCartesianTrajectoryGoal()
+
+        # Create middle pose (ONLY for Right Arm)
+        point1 = CartesianTrajectoryPoint()
+        point1.pose = geometry_msgs.Pose(
+            geometry_msgs.Vector3(self.init_pose[0], self.init_pose[1]+delta_y, self.init_pose[2]),
+            geometry_msgs.Quaternion(self.init_pose[3], self.init_pose[4], self.init_pose[5], self.init_pose[6])
+        )
+        point1.time_from_start = 5
+        goals.trajectory.points.append(point1)
+
+        # Create goal pose
+        point = CartesianTrajectoryPoint()
+        point.pose = geometry_msgs.Pose(
+            geometry_msgs.Vector3(goal_position[0], goal_position[1], goal_position[2]),
+            geometry_msgs.Quaternion(grasp_ori_quat[0], grasp_ori_quat[1], grasp_ori_quat[2], grasp_ori_quat[3])
+        )
+        point.time_from_start = rospy.Duration(dt)
+        goals.trajectory.points.append(point)
+
+        return goals
+
     def send_traj(self, goal, callback=None, wait_result=False):
 
         if wait_result:

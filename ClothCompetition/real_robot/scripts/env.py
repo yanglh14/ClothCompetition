@@ -62,6 +62,11 @@ class EnvReal:
         goal = self.robot_right.prepare_move_grasp(posi)
         self.robot_right.send_traj(goal)
 
+    def move_R_arm_steps(self, posi):
+        # generate goal step by step
+        goals = self.robot_right.prepare_move_grasp_steps(posi)
+        self.robot_right.send_traj(goals)
+
     def move_dual_arms(self, poses):
         self.move(poses[1], arm='left')
         self.move(poses[0], arm='right')

@@ -73,8 +73,10 @@ if __name__ == '__main__':
     # sample a grasp position from the point cloud
     grasp_posi = gp.sample_grasp_posi(cloth_pc)
 
-    # move R arm to the grasp pose (with initial orientation)
+    ## move R arm to the grasp pose (with initial orientation)
     gp.env.move_R_arm(grasp_posi)
+    # gp.env.move_R_arm_steps(grasp_posi)
+
 
 
 
