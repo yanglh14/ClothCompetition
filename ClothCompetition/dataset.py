@@ -116,7 +116,7 @@ class ClothDataset(Dataset):
                'scene_params': scene_params,
                'downsample_idx': downsample_idx,
                'downsample_observable_idx': downsample_observable_idx,
-               'observable_idx': downsample_observable_idx,
+               'observable_idx': [],
                'pointcloud': pointcloud.astype(np.float32)}
         if self.args.gen_gif:
             ret['rgb'], ret['depth'] = rgb, depth
@@ -131,13 +131,18 @@ class ClothDataset(Dataset):
             rollout_dir = os.path.join(self.data_dir, str(rollout_idx))
             os.system('mkdir -p ' + rollout_dir)
             self.env.reset()
-
-            self._prepare_steps()
+            self.env.action_tool.set_picker_pos(self.env.get_current_config()['picker_pose'])
             prev_data = self.get_curr_env_data()  # Get new picker position
 
             # policy_info = self._generate_policy_info()
             if self.args.gen_gif:
                 frames_rgb, frames_depth = [prev_data['rgb']], [prev_data['depth']]
+
+            # random select a particle to pick for right robot
+
+            picker_pose, picked_particle_idx = self._random_select_observable_particle_pos(num_candidates=3, condition="random",
+                                                                                offset_direction=[1.0, 0, 0.])
+            self._set_picker_pos(picker_pose, left=False)
 
             # Calculate the goal positions of both pickers
             ## First calculate the distance between two pickers
@@ -657,9 +662,9 @@ class ClothDataset(Dataset):
                         new_pos = vox_pc[picked_particles[i]] + new_picker_pos[i, :] - picker_pos[i, :]
                         new_vel = (new_pos - old_pos) / (self.dt * self.args.pred_time_interval)
 
-                        tmp_vel_history = velocity_his[picked_particles[i]][:-3].copy()
-                        velocity_his[picked_particles[i], 3:] = tmp_vel_history
-                        velocity_his[picked_particles[i], :3] = new_vel
+                        tmp_vel_history = velocity_his[picked_particles[i]][3:].copy()
+                        velocity_his[picked_particles[i], :-3] = tmp_vel_history
+                        velocity_his[picked_particles[i], -3:] = new_vel
 
                         vox_pc[picked_particles[i]] = new_pos
 
@@ -667,6 +672,7 @@ class ClothDataset(Dataset):
                         picked_pos.append(new_pos)
                 else:
                     picked_particles[i] = int(-1)
+        assert picked_particles[0] != -1 and picked_particles[1] != -1, "Both pickers should pick a particle"
         picked_status = (picked_velocity, picked_pos, new_picker_pos)
         return picked_particles, picked_status
 

@@ -52,7 +52,7 @@ def voxelize_pointcloud(pointcloud, voxel_size):
 from softgym.utils.misc import vectorized_range, vectorized_meshgrid
 
 
-def pc_reward_model(pos, cloth_particle_radius=0.00625, downsample_scale=3, axis='z'):
+def pc_reward_model(pos, cloth_particle_radius=0.00625, downsample_scale=3, axis='x'):
     if axis == 'z':
         axis_x= 0
         axis_y = 2
@@ -277,7 +277,7 @@ def set_shape_pos(pos):
     pyflex.set_shape_states(shape_states)
 
 
-def visualize(env, particle_positions, shape_positions, config_id, sample_idx=None, picked_particles=None, show=False):
+def visualize(env, particle_positions, shape_positions, config_id, sample_idx=None, picked_particles=None, show=False, save_dir=None):
     """ Render point cloud trajectory without running the simulation dynamics"""
     env.reset(config_id=config_id)
     frames = []
@@ -288,13 +288,14 @@ def visualize(env, particle_positions, shape_positions, config_id, sample_idx=No
         p[:, :3] = [0., -0.1, 0.]  # All particles moved underground
         if sample_idx is None:
             p[:len(particle_pos), :3] = particle_pos
+            sample_idx = np.arange(len(particle_pos))
         else:
             p[:, :3] = [0, -0.1, 0]
             p[sample_idx, :3] = particle_pos
         pyflex.set_positions(p)
         set_shape_pos(shape_pos)
-        rgb = env.get_image(env.camera_width, env.camera_height)
-        frames.append(rgb)
+
+
         if show:
             if i == 0: continue
             picked_point = picked_particles[i]
@@ -303,10 +304,14 @@ def visualize(env, particle_positions, shape_positions, config_id, sample_idx=No
                 if id != -1:
                     phases[sample_idx[int(id)]] = 1
             pyflex.set_phases(phases)
-            img = env.get_image()
+            # img = env.get_image()
+            # cv2.imshow('picked particle images', img[:, :, ::-1])
+            # cv2.waitKey()
 
-            cv2.imshow('picked particle images', img[:, :, ::-1])
-            cv2.waitKey()
+        rgb = env.get_image(env.camera_width, env.camera_height)
+        frames.append(rgb)
+        if save_dir is not None:
+            cv2.imwrite(osp.join(save_dir, '{}.png'.format(i)), rgb[:, :, ::-1])
 
     return frames
 
