@@ -50,14 +50,17 @@ class VCDynamics(object):
         for phase in ['train', 'valid']: self.datasets[phase].vcd_edge = self.vcd_edge
 
         follow_batch = ['x_{}'.format(t) for t in self.input_types]
-        self.dataloaders = {x: torch_geometric.data.DataLoader(
-            self.datasets[x], batch_size=args.batch_size, follow_batch=follow_batch,
-            shuffle=True if x == 'train' else False, drop_last=True,
-            num_workers=args.num_workers, pin_memory=True, prefetch_factor=5 if args.num_workers > 0 else 2)
-            for x in ['train', 'valid']}
+        if not args.gen_data:
+
+            self.dataloaders = {x: torch_geometric.data.DataLoader(
+                self.datasets[x], batch_size=args.batch_size, follow_batch=follow_batch,
+                shuffle=True if x == 'train' else False, drop_last=True,
+                num_workers=args.num_workers, pin_memory=True, prefetch_factor=5 if args.num_workers > 0 else 2)
+                for x in ['train', 'valid']}
+        else:
+            self.dataloaders = {x: None for x in ['train', 'valid']}
 
         self.mse_loss = torch.nn.MSELoss()
-
         self.log_dir = logger.get_dir()
         if self.args.use_wandb and args.eval == 0:
             # To use wandb, you need to create an account and run 'wandb login'.
@@ -108,7 +111,7 @@ class VCDynamics(object):
         config_id = int(data['scene_params'][3])
 
         # load action sequences and true particle positions
-        traj_particle_pos, actions, gt_rewards = [], [], []
+        traj_particle_pos, actions, gt_rewards, traj_particle_full = [], [], [], []
         pred_time_interval = self.args.pred_time_interval
         rollout_steps = dataset.rollout_steps[traj_id]
 
@@ -117,6 +120,7 @@ class VCDynamics(object):
             t_data = dataset.load_rollout_data(traj_id, t)
             if m_name == 'vsbl':
                 traj_particle_pos.append(t_data['positions'][t_data['downsample_idx']][data['partial_pc_mapped_idx']])
+                traj_particle_full.append(t_data['positions'][t_data['downsample_idx']])
             else:
                 traj_particle_pos.append(t_data['positions'][t_data['downsample_idx']])
             gt_rewards.append(t_data['gt_reward_crt'])
@@ -147,7 +151,9 @@ class VCDynamics(object):
                 'mesh_edges': mesh_edges,
                 'reward_pred_error': reward_pred_error,
                 'planning_error': planning_error,
-                'rollout_pos_error': pos_errors}
+                'rollout_pos_error': pos_errors,
+                'gt_positions_full': traj_particle_full,
+                'picked_points': res['picked_points']}
 
     def train(self):
         # Training loop
@@ -162,55 +168,55 @@ class VCDynamics(object):
                 epoch_infos = {m: AggDict(is_detach=True) for m in self.models}
 
                 epoch_len = len(self.dataloaders[phase])
-                # for i, data in tqdm(enumerate(self.dataloaders[phase]), desc=f'Epoch {epoch}, phase {phase}'):
-                #     data = data.to(self.device).to_dict()
-                #     iter_infos = {m_name: AggDict(is_detach=False) for m_name in self.models}
-                #     preds = {}
-                #     last_global = torch.zeros(self.args.batch_size, self.args.global_size, dtype=torch.float32,
-                #                               device=self.device)
-                #     with torch.set_grad_enabled(phase == 'train'):
-                #         for (m_name, model), iter_info in zip(self.models.items(), iter_infos.values()):
-                #             inputs = self.retrieve_data(data, m_name)
-                #             inputs['u'] = last_global
-                #             pred = model(inputs)
-                #             preds[m_name] = pred
-                #             iter_info.add_item('accel_loss', self.mse_loss(pred['accel'], inputs['gt_accel']))
-                #             iter_info.add_item('sqrt_accel_loss', torch.sqrt(iter_info['accel_loss']))
-                #             if self.train_mode != 'vsbl':
-                #                 iter_info.add_item('reward_loss',
-                #                                    self.mse_loss(pred['reward_nxt'].squeeze(), inputs['gt_reward_nxt']))
-                #
-                #     if self.args.train_mode == 'graph_imit':  # Graph imitation
-                #         iter_infos['vsbl'].add_item('imit_node_loss', self.mse_loss(preds['vsbl']['n_nxt'],
-                #                                                                     preds['full']['n_nxt'].detach()))
-                #         iter_infos['vsbl'].add_item('imit_lat_loss', self.mse_loss(preds['vsbl']['lat_nxt'],
-                #                                                                    preds['full']['lat_nxt'].detach()))
-                #     for m_name in self.models:
-                #         iter_info = iter_infos[m_name]
-                #         for feat in ['n_nxt', 'lat_nxt']:  # Node and global output
-                #             iter_info.add_item(feat + '_norm', torch.norm(preds[m_name][feat], dim=1).mean())
-                #
-                #         if self.args.train_mode == 'vsbl':  # Student loss
-                #             iter_info.add_item('total_loss', iter_info['accel_loss'])
-                #         elif self.args.train_mode == 'graph_imit' and m_name == 'vsbl':  # Student loss
-                #             iter_info.add_item('imit_loss',
-                #                                iter_info['imit_lat_loss'] * self.args.imit_w_lat + iter_info[
-                #                                    'imit_node_loss'])
-                #             iter_info.add_item('total_loss',
-                #                                iter_info['accel_loss'] + self.args.imit_w * iter_info[
-                #                                    'imit_loss'] +
-                #                                + self.args.reward_w * iter_info['reward_loss'])
-                #         else:  # Teacher loss or no graph imitation
-                #             iter_info.add_item('total_loss',
-                #                                iter_info['accel_loss'] + self.args.reward_w * iter_info['reward_loss'])
-                #
-                #         if phase == 'train':
-                #             if not (self.train_mode == 'graph_imit' and m_name == 'full' and not self.args.tune_teach):
-                #                 self.optims[m_name].zero_grad()
-                #                 iter_info['total_loss'].backward()
-                #                 self.optims[m_name].step()
-                #
-                #         epoch_infos[m_name].update_by_add(iter_infos[m_name])  # Aggregate info
+                for i, data in tqdm(enumerate(self.dataloaders[phase]), desc=f'Epoch {epoch}, phase {phase}'):
+                    data = data.to(self.device).to_dict()
+                    iter_infos = {m_name: AggDict(is_detach=False) for m_name in self.models}
+                    preds = {}
+                    last_global = torch.zeros(self.args.batch_size, self.args.global_size, dtype=torch.float32,
+                                              device=self.device)
+                    with torch.set_grad_enabled(phase == 'train'):
+                        for (m_name, model), iter_info in zip(self.models.items(), iter_infos.values()):
+                            inputs = self.retrieve_data(data, m_name)
+                            inputs['u'] = last_global
+                            pred = model(inputs)
+                            preds[m_name] = pred
+                            iter_info.add_item('accel_loss', self.mse_loss(pred['accel'], inputs['gt_accel']))
+                            iter_info.add_item('sqrt_accel_loss', torch.sqrt(iter_info['accel_loss']))
+                            if self.train_mode != 'vsbl':
+                                iter_info.add_item('reward_loss',
+                                                   self.mse_loss(pred['reward_nxt'].squeeze(), inputs['gt_reward_nxt']))
+
+                    if self.args.train_mode == 'graph_imit':  # Graph imitation
+                        iter_infos['vsbl'].add_item('imit_node_loss', self.mse_loss(preds['vsbl']['n_nxt'],
+                                                                                    preds['full']['n_nxt'].detach()))
+                        iter_infos['vsbl'].add_item('imit_lat_loss', self.mse_loss(preds['vsbl']['lat_nxt'],
+                                                                                   preds['full']['lat_nxt'].detach()))
+                    for m_name in self.models:
+                        iter_info = iter_infos[m_name]
+                        for feat in ['n_nxt', 'lat_nxt']:  # Node and global output
+                            iter_info.add_item(feat + '_norm', torch.norm(preds[m_name][feat], dim=1).mean())
+
+                        if self.args.train_mode == 'vsbl':  # Student loss
+                            iter_info.add_item('total_loss', iter_info['accel_loss'])
+                        elif self.args.train_mode == 'graph_imit' and m_name == 'vsbl':  # Student loss
+                            iter_info.add_item('imit_loss',
+                                               iter_info['imit_lat_loss'] * self.args.imit_w_lat + iter_info[
+                                                   'imit_node_loss'])
+                            iter_info.add_item('total_loss',
+                                               iter_info['accel_loss'] + self.args.imit_w * iter_info[
+                                                   'imit_loss'] +
+                                               + self.args.reward_w * iter_info['reward_loss'])
+                        else:  # Teacher loss or no graph imitation
+                            iter_info.add_item('total_loss',
+                                               iter_info['accel_loss'] + self.args.reward_w * iter_info['reward_loss'])
+
+                        if phase == 'train':
+                            if not (self.train_mode == 'graph_imit' and m_name == 'full' and not self.args.tune_teach):
+                                self.optims[m_name].zero_grad()
+                                iter_info['total_loss'].backward()
+                                self.optims[m_name].step()
+
+                        epoch_infos[m_name].update_by_add(iter_infos[m_name])  # Aggregate info
 
                 # rollout evaluation
                 nstep_eval_rollout = self.args.nstep_eval_rollout
@@ -228,6 +234,9 @@ class VCDynamics(object):
                             dict(rollout_pos_error=np.array(traj_rollout_info['rollout_pos_error']).mean(),
                                  reward_pred_error=np.array(traj_rollout_info['reward_pred_error']).mean(),
                                  planning_error=np.array(traj_rollout_info['planning_error']).mean()))
+                        # frames_gt_full = visualize(self.datasets[phase].env, traj_rollout_info['gt_positions_full'],
+                        #                          traj_rollout_info['shape_positions'],
+                        #                          traj_rollout_info['config_id'], picked_particles=traj_rollout_info['picked_points'], show=True, save_dir=self.log_dir)
 
                         frames_model = visualize(self.datasets[phase].env, traj_rollout_info['model_positions'],
                                                  traj_rollout_info['shape_positions'],
@@ -235,6 +244,7 @@ class VCDynamics(object):
                         frames_gt = visualize(self.datasets[phase].env, traj_rollout_info['gt_positions'],
                                               traj_rollout_info['shape_positions'],
                                               traj_rollout_info['config_id'])
+
                         mesh_edges = traj_rollout_info['mesh_edges']
                         if mesh_edges is not None:  # Visualization of mesh edges on the predicted model
                             frames_edge_visual = copy.deepcopy(frames_model)
@@ -358,6 +368,7 @@ class VCDynamics(object):
         initial_pc_pos = pc_pos.copy()
         pred_rewards = np.zeros(H)
         gt_pos_rewards = np.zeros(H)
+        picked_points = []
 
         # Predict mesh during evaluation and use gt edges during training
         if self.vcd_edge is not None and mesh_edges is None:
@@ -397,6 +408,7 @@ class VCDynamics(object):
                     graph_data = dataset.build_graph(data, input_type=m_name, robot_exp=robot_exp)
                     graph_data['neighbors'], graph_data['edge_attr'] = fix_edges, fix_edge_attr
 
+            picked_points.append(graph_data['picked_particles'])
             model_positions[t] = pc_pos
             shape_positions[t] = picker_pos
 
@@ -430,7 +442,8 @@ class VCDynamics(object):
                     shape_positions=shape_positions,
                     mesh_edges=mesh_edges,
                     pred_rewards=pred_rewards,
-                    gt_pos_rewards=gt_pos_rewards)
+                    gt_pos_rewards=gt_pos_rewards,
+                    picked_points = picked_points)
 
     def update_graph(self, pred_accel, pc_pos, velocity_his, picked_status, picked_particles):
         """ Euler integration"""
