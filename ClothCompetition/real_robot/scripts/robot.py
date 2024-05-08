@@ -147,7 +147,8 @@ class Robot:
         # change the goal euler angle to the quaternion
         grasp_ori_quat = euler2quat(np.pi/2, 0, 0)
 
-        goal_position = self.transform_origin2base(posi) + self.picker_to_ee_trans
+        offset_piker = self.picker_to_ee_trans[2]
+        goal_position = self.transform_origin2base(posi) + [offset_piker, 0, 0]
         goal = FollowCartesianTrajectoryGoal()
 
         # Create initial pose
