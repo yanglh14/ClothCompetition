@@ -92,15 +92,17 @@ if __name__ == '__main__':
     # given a goal position (testing purpose)
     temp = gp.env.robot_right.get_ee_pose_in_origin()[0]
     print('cur posi {rr}:', gp.env.robot_right.transform_origin2base(temp))
-    goal_POSI = gp.env.robot_right.get_ee_pose_in_origin()[0] + np.array([0.1, 0, -0.165])
+    goal_POSI = gp.env.robot_right.get_ee_pose_in_origin()[0] + np.array([0.05, 0, -0.165]) # X+0.05 no collision
     goal_posi_rr = gp.env.robot_right.transform_origin2base(goal_POSI)
     print('goal posi {rr}:', goal_posi_rr)
 
+    grasp_POSI = goal_POSI + np.array([0, -0.1, 0.1]) # grasp position
+
 
     ## move R arm to the grasp pose (with initial orientation)(world frame)
-    gp.env.move(goal_POSI, arm='right')
+    # gp.env.move(goal_POSI, arm='right')
     # gp.env.move_R_arm(goal_POSI)
-    # gp.env.move_R_arm_steps(grasp_POSI)
+    gp.env.move_R_arm_steps(grasp_POSI)
 
 
 
