@@ -1,0 +1,20 @@
+EndEffectort2R1:
+  translation: [-0.3, 0.1, 0.8]
+  rotation: [0, 120, 0] # in xyz order
+
+Camera2EndEffector:
+  translation: [0, 0, 0.05826]
+  rotation: [0, 0, -90]  # in xyz order
+
+rs435_bias: [0, 0.0175, -0.0042]
+#rs435_bias: [0, 0.0, -0.00]
+
+R1toR2:
+  translation: [ 1.1, 0.6, 0 ]
+  rotation: [ 0, 0, 180 ] # in xyz order
+
+R2toOrigin:
+  translation: [ -0.1, -0.5, 0 ]
+  rotation: [ 0, 0, 0 ] # in xyz order
+
+picker_bias: [0, 0.2, 0.06]

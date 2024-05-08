@@ -1,0 +1,27 @@
+robot_left:
+  robot_name: "ur10e"
+#  init_pose: [0.4, 0.1, 0.6, 0.7071, -0.7071, 0, 0]
+  init_pose: [ 0.6225, 0.1, 0.9, 0, 0.7071, 0, 0.7071]
+
+  robot_to_origin:
+    translation: [ 0.1, -0.5875, 0 ]
+    rotation: [ 0, 0, 1.5707 ] # in sxyz order
+  picker_to_ee:
+    translation: [0, 0, 0.165]
+    rotation: [ 0, 0, 0 ] # in sxyz order
+
+robot_right:
+  robot_name: "ur16e"
+#  init_pose: [0.25, -0.1, 0.6, 0.7071, -0.7071, 0, 0]
+  init_pose: [ 0.2, -0, 0.6, 1, 0, 0, 0 ]
+
+  robot_to_origin:
+    translation: [ 0.1, 0.5875, 0 ]
+    rotation: [ 0, 0, -1.5707 ] # in sxyz order
+  picker_to_ee:
+    translation: [0, 0, 0.165]
+    rotation: [ 0, 0, 0 ] # in sxyz order
+
+camera_to_robot_left: # calibration between camera and robot
+    translation: [0.564681, -1.25639, 1.00951]
+    rotation: [-1.979556, -0.00542567, -0.0461177686]  # in sxyz order
