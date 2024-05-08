@@ -27,11 +27,13 @@ class Grasp:
         return self.rs_listener.image.copy()
 
     def sample_grasp_posi(self, pc):
+        z_offset = 0.1
         # set region of interest (roi)
         x = pc[:, 0]
         y = pc[:, 1]
         z = pc[:, 2]
         z_min, z_max = np.min(z), np.max(z)
+        z_max = z_max - z_offset # manually set max height for grasping
         z_interval = z_max - z_min
         pool_part = [1,2,2,3,3,3,4,4,4,4]
         # sample a point from pool_part
@@ -49,8 +51,8 @@ class Grasp:
             # throw a warning
             raise ValueError('No point in the region of interest')
         # find out the corresponding pc
-        grasp_pose = pc[idx]
-        return grasp_pose
+        grasp_position = pc[idx]
+        return grasp_position
 
 
 
@@ -58,6 +60,7 @@ if __name__ == '__main__':
     gp = Grasp()
     gp.env.reset()
     gp.env.gripper_close()
+    gp.env.robot_right.set_gripper_open(True)
     image = gp.get_image()
     mask = clothes_detection(image,'green_leaf')
     # cv2.imwrite('../log/mask_comp.png', mask)
@@ -66,7 +69,7 @@ if __name__ == '__main__':
     print('cloth_pc:', cloth_pc.shape)
 
     # sample a grasp position from the point cloud
-    grasp_pose = gp.sample_grasp_posi(cloth_pc)
+    grasp_posi = gp.sample_grasp_posi(cloth_pc)
 
     # move R arm to the grasp pose (with initial orientation)
     gp.env.move(grasp_pose, arm='right')
