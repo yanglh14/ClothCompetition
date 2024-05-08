@@ -194,7 +194,7 @@ class Robot:
 
         return goals
 
-    def send_traj(self, goal, callback=None, wait_result=False):
+    def send_traj(self, goal, callback=None, wait_result=True):
 
         if wait_result:
             self.send_cartesian_trajectory(goal, callback)
