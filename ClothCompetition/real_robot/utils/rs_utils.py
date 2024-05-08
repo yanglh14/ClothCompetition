@@ -27,8 +27,8 @@ cloth_upper = np.array([140, 140, 160], dtype="uint8")
 orange_lower = np.array([0, 100, 100], dtype="uint8")
 orange_upper = np.array([40, 255, 255], dtype="uint8")
 
-clothes_color_range = {
-    'green_leaf': np.array([0, 100, 100, 30, 255, 255], dtype="uint8"),
+clothes_color_range = {# hsv, hsv
+    'green_leaf': np.array([0, 20, 70, 40, 60, 140], dtype="uint8"),
 }
 
 def compute_transformation_matrix(translation, rpy, radians=True):
@@ -102,9 +102,9 @@ def clothes_detection(image,cloth_name):
 
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     # save h,s,v three files
-    # cv2.imwrite('../log/h.png', hsv[:, :, 0])
-    # cv2.imwrite('../log/s.png', hsv[:, :, 1])
-    # cv2.imwrite('../log/v.png', hsv[:, :, 2])
+    # cv2.imwrite('../log/h_comp.png', hsv[:, :, 0])
+    # cv2.imwrite('../log/s_comp.png', hsv[:, :, 1])
+    # cv2.imwrite('../log/v_comp.png', hsv[:, :, 2])
 
     cur_cloth_lower, cur_cloth_upper = get_cloth_range(cloth_name)
     # Create a mask for the colth
@@ -126,9 +126,9 @@ def clothes_detection(image,cloth_name):
             cX, cY = 0, 0
 
         # Draw the contour and centroid on the image
-        cv2.drawContours(image, [c], -1, (0, 255, 0), 2)
-        cv2.circle(image, (cX, cY), 5, (255, 255, 255), -1)
-        cv2.imwrite('../log/contour_comp.png', image)
+        # cv2.drawContours(image, [c], -1, (0, 255, 0), 2)
+        # cv2.circle(image, (cX, cY), 5, (255, 255, 255), -1)
+        # cv2.imwrite('../log/contour_comp.png', image)
 
     else:
         raise Exception("No cloth found in the image.")
