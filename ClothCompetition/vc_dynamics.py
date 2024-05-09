@@ -103,7 +103,6 @@ class VCDynamics(object):
     def load_data_and_rollout(self, m_name, traj_id, phase):
         dataset = self.datasets[phase]
         idx = dataset.traj_id_to_idx(traj_id)
-
         data = dataset.prepare_transition(idx, eval=True)
         data = dataset.remove_suffix(data, m_name)
         traj_id = data[
@@ -115,9 +114,21 @@ class VCDynamics(object):
         pred_time_interval = self.args.pred_time_interval
         rollout_steps = dataset.rollout_steps[traj_id]
 
+        # Todo: debug
+        pc_infer = [data['pointcloud']]
         for t in range(0, (rollout_steps//pred_time_interval)*pred_time_interval - pred_time_interval,
                        pred_time_interval):
             t_data = dataset.load_rollout_data(traj_id, t)
+            # Todo: debug
+            _data = dataset.prepare_transition(idx+t, eval=True)
+            _data = dataset.remove_suffix(_data, m_name)
+            gt_accel = _data['gt_accel']
+            velocity_his = _data['vel_his']
+
+            gt_vel = velocity_his[:,-3:] + np.array(gt_accel) * self.args.dt * pred_time_interval
+            pc_pos = _data['pointcloud'] + np.array(gt_vel) * self.args.dt * pred_time_interval
+            pc_infer.append(pc_pos)
+
             if m_name == 'vsbl':
                 traj_particle_pos.append(t_data['positions'][t_data['downsample_idx']][data['partial_pc_mapped_idx']])
                 traj_particle_full.append(t_data['positions'][t_data['downsample_idx']])
@@ -144,6 +155,7 @@ class VCDynamics(object):
         # planning_error = (pred_rewards[-1] - gt_rewards[-1]) ** 2  # measure predicted return error
         reward_pred_error = 0 # not predict reward now
         planning_error = 0
+
         return {'model_positions': model_positions,
                 'gt_positions': traj_particle_pos,
                 'shape_positions': shape_positions,
@@ -153,7 +165,8 @@ class VCDynamics(object):
                 'planning_error': planning_error,
                 'rollout_pos_error': pos_errors,
                 'gt_positions_full': traj_particle_full,
-                'picked_points': res['picked_points']}
+                'picked_points': res['picked_points'],
+                'pc_infer': np.array(pc_infer)}
 
     def train(self):
         # Training loop
@@ -168,55 +181,55 @@ class VCDynamics(object):
                 epoch_infos = {m: AggDict(is_detach=True) for m in self.models}
 
                 epoch_len = len(self.dataloaders[phase])
-                for i, data in tqdm(enumerate(self.dataloaders[phase]), desc=f'Epoch {epoch}, phase {phase}'):
-                    data = data.to(self.device).to_dict()
-                    iter_infos = {m_name: AggDict(is_detach=False) for m_name in self.models}
-                    preds = {}
-                    last_global = torch.zeros(self.args.batch_size, self.args.global_size, dtype=torch.float32,
-                                              device=self.device)
-                    with torch.set_grad_enabled(phase == 'train'):
-                        for (m_name, model), iter_info in zip(self.models.items(), iter_infos.values()):
-                            inputs = self.retrieve_data(data, m_name)
-                            inputs['u'] = last_global
-                            pred = model(inputs)
-                            preds[m_name] = pred
-                            iter_info.add_item('accel_loss', self.mse_loss(pred['accel'], inputs['gt_accel']))
-                            iter_info.add_item('sqrt_accel_loss', torch.sqrt(iter_info['accel_loss']))
-                            if self.train_mode != 'vsbl':
-                                iter_info.add_item('reward_loss',
-                                                   self.mse_loss(pred['reward_nxt'].squeeze(), inputs['gt_reward_nxt']))
-
-                    if self.args.train_mode == 'graph_imit':  # Graph imitation
-                        iter_infos['vsbl'].add_item('imit_node_loss', self.mse_loss(preds['vsbl']['n_nxt'],
-                                                                                    preds['full']['n_nxt'].detach()))
-                        iter_infos['vsbl'].add_item('imit_lat_loss', self.mse_loss(preds['vsbl']['lat_nxt'],
-                                                                                   preds['full']['lat_nxt'].detach()))
-                    for m_name in self.models:
-                        iter_info = iter_infos[m_name]
-                        for feat in ['n_nxt', 'lat_nxt']:  # Node and global output
-                            iter_info.add_item(feat + '_norm', torch.norm(preds[m_name][feat], dim=1).mean())
-
-                        if self.args.train_mode == 'vsbl':  # Student loss
-                            iter_info.add_item('total_loss', iter_info['accel_loss'])
-                        elif self.args.train_mode == 'graph_imit' and m_name == 'vsbl':  # Student loss
-                            iter_info.add_item('imit_loss',
-                                               iter_info['imit_lat_loss'] * self.args.imit_w_lat + iter_info[
-                                                   'imit_node_loss'])
-                            iter_info.add_item('total_loss',
-                                               iter_info['accel_loss'] + self.args.imit_w * iter_info[
-                                                   'imit_loss'] +
-                                               + self.args.reward_w * iter_info['reward_loss'])
-                        else:  # Teacher loss or no graph imitation
-                            iter_info.add_item('total_loss',
-                                               iter_info['accel_loss'] + self.args.reward_w * iter_info['reward_loss'])
-
-                        if phase == 'train':
-                            if not (self.train_mode == 'graph_imit' and m_name == 'full' and not self.args.tune_teach):
-                                self.optims[m_name].zero_grad()
-                                iter_info['total_loss'].backward()
-                                self.optims[m_name].step()
-
-                        epoch_infos[m_name].update_by_add(iter_infos[m_name])  # Aggregate info
+                # for i, data in tqdm(enumerate(self.dataloaders[phase]), desc=f'Epoch {epoch}, phase {phase}'):
+                #     data = data.to(self.device).to_dict()
+                #     iter_infos = {m_name: AggDict(is_detach=False) for m_name in self.models}
+                #     preds = {}
+                #     last_global = torch.zeros(self.args.batch_size, self.args.global_size, dtype=torch.float32,
+                #                               device=self.device)
+                #     with torch.set_grad_enabled(phase == 'train'):
+                #         for (m_name, model), iter_info in zip(self.models.items(), iter_infos.values()):
+                #             inputs = self.retrieve_data(data, m_name)
+                #             inputs['u'] = last_global
+                #             pred = model(inputs)
+                #             preds[m_name] = pred
+                #             iter_info.add_item('accel_loss', self.mse_loss(pred['accel'], inputs['gt_accel']))
+                #             iter_info.add_item('sqrt_accel_loss', torch.sqrt(iter_info['accel_loss']))
+                #             if self.train_mode != 'vsbl':
+                #                 iter_info.add_item('reward_loss',
+                #                                    self.mse_loss(pred['reward_nxt'].squeeze(), inputs['gt_reward_nxt']))
+                #
+                #     if self.args.train_mode == 'graph_imit':  # Graph imitation
+                #         iter_infos['vsbl'].add_item('imit_node_loss', self.mse_loss(preds['vsbl']['n_nxt'],
+                #                                                                     preds['full']['n_nxt'].detach()))
+                #         iter_infos['vsbl'].add_item('imit_lat_loss', self.mse_loss(preds['vsbl']['lat_nxt'],
+                #                                                                    preds['full']['lat_nxt'].detach()))
+                #     for m_name in self.models:
+                #         iter_info = iter_infos[m_name]
+                #         for feat in ['n_nxt', 'lat_nxt']:  # Node and global output
+                #             iter_info.add_item(feat + '_norm', torch.norm(preds[m_name][feat], dim=1).mean())
+                #
+                #         if self.args.train_mode == 'vsbl':  # Student loss
+                #             iter_info.add_item('total_loss', iter_info['accel_loss'])
+                #         elif self.args.train_mode == 'graph_imit' and m_name == 'vsbl':  # Student loss
+                #             iter_info.add_item('imit_loss',
+                #                                iter_info['imit_lat_loss'] * self.args.imit_w_lat + iter_info[
+                #                                    'imit_node_loss'])
+                #             iter_info.add_item('total_loss',
+                #                                iter_info['accel_loss'] + self.args.imit_w * iter_info[
+                #                                    'imit_loss'] +
+                #                                + self.args.reward_w * iter_info['reward_loss'])
+                #         else:  # Teacher loss or no graph imitation
+                #             iter_info.add_item('total_loss',
+                #                                iter_info['accel_loss'] + self.args.reward_w * iter_info['reward_loss'])
+                #
+                #         if phase == 'train':
+                #             if not (self.train_mode == 'graph_imit' and m_name == 'full' and not self.args.tune_teach):
+                #                 self.optims[m_name].zero_grad()
+                #                 iter_info['total_loss'].backward()
+                #                 self.optims[m_name].step()
+                #
+                #         epoch_infos[m_name].update_by_add(iter_infos[m_name])  # Aggregate info
 
                 # rollout evaluation
                 nstep_eval_rollout = self.args.nstep_eval_rollout
@@ -234,16 +247,20 @@ class VCDynamics(object):
                             dict(rollout_pos_error=np.array(traj_rollout_info['rollout_pos_error']).mean(),
                                  reward_pred_error=np.array(traj_rollout_info['reward_pred_error']).mean(),
                                  planning_error=np.array(traj_rollout_info['planning_error']).mean()))
-                        # frames_gt_full = visualize(self.datasets[phase].env, traj_rollout_info['gt_positions_full'],
-                        #                          traj_rollout_info['shape_positions'],
-                        #                          traj_rollout_info['config_id'], picked_particles=traj_rollout_info['picked_points'], show=True, save_dir=self.log_dir)
+                        frames_gt_full = visualize(self.datasets[phase].env, traj_rollout_info['gt_positions_full'],
+                                                 traj_rollout_info['shape_positions'],
+                                                 traj_rollout_info['config_id'], picked_particles=traj_rollout_info['picked_points'], show=True)
+
+                        frames_gt_infer = visualize(self.datasets[phase].env, traj_rollout_info['pc_infer'][1:],
+                                              traj_rollout_info['shape_positions'],
+                                              traj_rollout_info['config_id'])
 
                         frames_model = visualize(self.datasets[phase].env, traj_rollout_info['model_positions'],
                                                  traj_rollout_info['shape_positions'],
-                                                 traj_rollout_info['config_id'])
+                                                 traj_rollout_info['config_id'],picked_particles=traj_rollout_info['picked_points'], show=True)
                         frames_gt = visualize(self.datasets[phase].env, traj_rollout_info['gt_positions'],
                                               traj_rollout_info['shape_positions'],
-                                              traj_rollout_info['config_id'])
+                                              traj_rollout_info['config_id'], picked_particles=traj_rollout_info['picked_points'], show=True)
 
                         mesh_edges = traj_rollout_info['mesh_edges']
                         if mesh_edges is not None:  # Visualization of mesh edges on the predicted model
@@ -262,9 +279,9 @@ class VCDynamics(object):
                                     image = cv2.line(frames_edge_visual[t], start, end, color, thickness)
                                     frames_edge_visual[t] = image
 
-                            combined_frames = [np.hstack([frame_gt, frame_model, frame_edge])
-                                               for (frame_gt, frame_model, frame_edge) in
-                                               zip(frames_gt, frames_model, frames_edge_visual)]
+                            combined_frames = [np.hstack([frame_infer,frame_gt_full, frame_gt, frame_model, frame_edge])
+                                               for (frame_infer,frame_gt_full, frame_gt, frame_model, frame_edge) in
+                                               zip(frames_gt_infer, frames_gt_full, frames_gt, frames_model, frames_edge_visual)]
 
                         else:
                             combined_frames = [np.hstack([frame_gt, frame_model]) for (frame_gt, frame_model) in
@@ -355,7 +372,7 @@ class VCDynamics(object):
         pc_pos = model_input_data['pointcloud']
         pc_vel_his = model_input_data['vel_his']
         picker_pos = model_input_data['picker_position']
-        # picked_particles = model_input_data['picked_points']
+        picked_particles = model_input_data['picked_points_idx'] # picked point index
         scene_params = model_input_data['scene_params']
         observable_particle_index = model_input_data['partial_pc_mapped_idx']
         rest_dist = model_input_data.get('rest_dist', None)
@@ -389,7 +406,7 @@ class VCDynamics(object):
                     'vel_his': pc_vel_his,
                     'picker_position': picker_pos,
                     'action': actions[t],
-                    # 'picked_points': picked_particles,
+                    'picked_points': picked_particles,
                     'scene_params': scene_params,
                     'partial_pc_mapped_idx': observable_particle_index if not robot_exp else range(len(pc_pos)),
                     'mesh_edges': mesh_edges,

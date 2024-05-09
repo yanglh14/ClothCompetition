@@ -139,7 +139,7 @@ class Picker(ActionToolBase):
         shape_states[:, :3] = picker_pos
         pyflex.set_shape_states(shape_states)
 
-    def step(self, action):
+    def step(self, action, picked_particles=[None, None]):
         """ action = [translation, pick/unpick] * num_pickers.
         1. Determine whether to pick/unpick the particle and which one, for each picker
         2. Update picker pos
@@ -162,6 +162,9 @@ class Picker(ActionToolBase):
         for i in range(self.num_picker):
             new_picker_pos[i, :] = self._apply_picker_boundary(picker_pos[i, :] + action[i, :3])
             if pick_flag[i]:
+                if picked_particles[i] is not None:
+                    self.picked_particles[i] = picked_particles[i]
+
                 if self.picked_particles[i] is None:  # No particle is currently picked and thus need to select a particle to pick
                     dists = scipy.spatial.distance.cdist(picker_pos[i].reshape((-1, 3)), particle_pos[:, :3].reshape((-1, 3)))
                     idx_dists = np.hstack([np.arange(particle_pos.shape[0]).reshape((-1, 1)), dists.reshape((-1, 1))])
@@ -203,7 +206,7 @@ class Picker(ActionToolBase):
                         new_picker_pos[active_picker_indices[j], :] = picker_pos[active_picker_indices[j], :].copy()
                         new_particle_pos[picked_particle_idices[i], :3] = particle_pos[picked_particle_idices[i], :3].copy()
                         new_particle_pos[picked_particle_idices[j], :3] = particle_pos[picked_particle_idices[j], :3].copy()
-
+        # print('picked_particles:', self.picked_particles)
         self._set_pos(new_picker_pos, new_particle_pos)
 
 class PickerPickPlace(Picker):

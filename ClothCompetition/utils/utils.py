@@ -313,6 +313,7 @@ def visualize(env, particle_positions, shape_positions, config_id, sample_idx=No
         if save_dir is not None:
             cv2.imwrite(osp.join(save_dir, '{}.png'.format(i)), rgb[:, :, ::-1])
 
+        sample_idx = None
     return frames
 
 
