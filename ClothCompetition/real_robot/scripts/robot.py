@@ -196,6 +196,26 @@ class Robot:
 
         return goal
 
+    def prepare_R_arm_ee_move(self, dt=5):
+        goal_EE_posi = 0.001*np.array([150,300,900])
+        # goal_EE_quat = euler2quat(np.pi / 2, np.pi / 2, np.pi / 2)
+
+        goal = FollowCartesianTrajectoryGoal()
+        # Create the Pose message
+        pose_msg = geometry_msgs.Pose(
+            geometry_msgs.Vector3(goal_EE_posi[0], goal_EE_posi[1], goal_EE_posi[2]),
+            geometry_msgs.Quaternion(self.init_pose[3], self.init_pose[4], self.init_pose[5], self.init_pose[6])
+        )
+        # Create the CartesianTrajectoryPoint
+        point = CartesianTrajectoryPoint()
+        point.pose = pose_msg
+        point.time_from_start = rospy.Duration(dt)
+
+        # Add to the goal
+        goal.trajectory.points.append(point)
+
+        return goal
+
     def prepare_tcp_move(self, pose, dt=5):
         picker_offset = self.picker_to_ee_trans[2]
         if self.robot_name == "ur10e":

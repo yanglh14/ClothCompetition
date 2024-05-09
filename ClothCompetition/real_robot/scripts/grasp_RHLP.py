@@ -157,7 +157,8 @@ if __name__ == '__main__':
     # POSI_end_R = gp.env.robot_right.get_ee_pose_in_origin()[0] - np.array([0.165, 0, 0]) + np.array([0,0.0,0.7]) # TCP
     # gp.env.move_arm(POSI_end_L,None,10)
 
-    gp.env.move_L_arm_stretch()
+    gp.env.move_L_arm_stretch(10)
+    gp.env.move_R_arm_stretch(10)
 
 
 
