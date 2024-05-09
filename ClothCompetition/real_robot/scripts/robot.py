@@ -344,7 +344,7 @@ class Robot:
         )
         point.time_from_start = rospy.Duration(dt)
         goal.trajectory.points.append(point)
-        self.send_traj(goal)
+        self.send_traj(goal,wait_result=False)
         # self.trajectory_client.send_goal(goal)
         # self.trajectory_client.wait_for_result()
         #
