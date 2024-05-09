@@ -44,9 +44,9 @@ class Grasp:
         z_min, z_max = np.min(z), np.max(z)
         z_max = z_max - z_offset # manually set max height for grasping
         z_interval = z_max - z_min
-        pool_part = [1,2,2,3,3,3,4,4,4,4]
-        # sample a point from pool_part
-        target_part = sample(pool_part, 1)[0]
+
+        pool_part = np.array([1,2,3,4])
+        target_part = np.random.choice(pool_part, 1, p=[0.05, 0.1, 0.2, 0.65])[0]
         # determine the region of target part
         z_roi_min = z_min + z_interval * (target_part - 1) / 4
         z_roi_max = z_min + z_interval * target_part / 4
