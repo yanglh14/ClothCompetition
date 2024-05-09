@@ -286,26 +286,29 @@ def visualize(env, particle_positions, shape_positions, config_id, sample_idx=No
     frames = []
     for i in range(len(particle_positions)):
         particle_pos = particle_positions[i]
-        shape_pos = shape_positions[i]
+        # shape_pos = shape_positions[i]
         p = pyflex.get_positions().reshape(-1, 4)
         p[:, :3] = [0., -0.1, 0.]  # All particles moved underground
         if sample_idx is None:
             p[:len(particle_pos), :3] = particle_pos
             sample_idx = np.arange(len(particle_pos))
         else:
+            sample_idx = np.arange(len(particle_pos))
             p[:, :3] = [0, -0.1, 0]
             p[sample_idx, :3] = particle_pos
         pyflex.set_positions(p)
-        set_shape_pos(shape_pos)
-
+        # set_shape_pos(shape_pos)
 
         if show:
             if i == 0: continue
             picked_point = picked_particles[i]
             phases = np.zeros(pyflex.get_n_particles())
+            p = pyflex.get_positions().reshape(-1, 4)
             for id in picked_point:
                 if id != -1:
                     phases[sample_idx[int(id)]] = 1
+                    p[sample_idx[int(id)], 0] += 0.01
+            pyflex.set_positions(p)
             pyflex.set_phases(phases)
             # img = env.get_image()
             # cv2.imshow('picked particle images', img[:, :, ::-1])

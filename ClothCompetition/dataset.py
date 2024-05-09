@@ -859,17 +859,21 @@ class ClothDataset(Dataset):
         for i in range(self.args.num_picker):
             action[i*4:i*4+3] = data_nxt['picker_position'][i,:3] - data_cur['picker_position'][i,:3]
 
+        #find the grapsed points
+        picked_paticles = data_cur['picked_particles']
+        picked_positions = data_cur['positions'][picked_paticles]
+        vox_pc = np.concatenate([vox_pc, picked_positions], axis=0)
+        picked_points_idx = np.array([len(vox_pc) - 2, len(vox_pc) - 1])
+
         # Use clean observable point cloud for bi-partite matching
         # particle_pc_mapped_idx: For each point in pc, give the index of the closest point on the visible downsample mesh
         vox_pc, partial_pc_mapped_idx = get_observable_particle_index_3(vox_pc, partial_particle_pos, threshold=self.args.voxel_size)
         partial_pc_mapped_idx = data_cur['downsample_observable_idx'][
             partial_pc_mapped_idx]  # Map index from the observable downsampled mesh to the downsampled mesh
 
-        #find the grapsed points
-        picked_paticles = data_cur['picked_particles']
-        picked_positions = data_cur['positions'][picked_paticles]
-        distance = scipy.spatial.distance.cdist(picked_positions, vox_pc)
-        picked_points_idx = np.argmin(distance, axis=1)
+
+        # distance = scipy.spatial.distance.cdist(picked_positions, vox_pc)
+        # picked_points_idx = np.argmin(distance, axis=1)
 
         # TODO Later try this new way
         # _, partial_pc_mapped_idx = get_mapping_from_pointcloud_to_partile_nearest_neighbor(vox_pc, partial_particle_pos,
