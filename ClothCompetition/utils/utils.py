@@ -99,6 +99,9 @@ def downsample(cloth_xdim, cloth_ydim, scale):
 
     return new_idx, cloth_xdim, cloth_ydim
 
+def downsample_tshirt():
+    pass
+
 
 def load_h5_data(data_names, path):
     hf = h5py.File(path, 'r')
