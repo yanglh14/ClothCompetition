@@ -67,10 +67,40 @@ class Grasp:
         grasp_position = pc[idx]
         return grasp_position
 
+    def generate_stretch_traj(self, POSI_start_L, POSI_start_R, L, N, dur):
+        X0_L, Y0_L, Z0_L = POSI_start_L
+        X0_R, Y0_R, Z0_R = POSI_start_R
+        X_R_ls, Y_R_ls, Z_R_ls, X_L_ls, Y_L_ls, Z_L_ls = [], [], [], [], [], []
+        # time_from_start_ls = []
+        # time_from_start = 0.0
+        dt = dur / N
 
+        for i in range(N + 1):
+            # time_from_start += dur / N
+            # time_from_start_ls.append(time_from_start)
+
+            X_L = X0_L
+            Y_L = Y0_L - i * L / (2 * N)
+            Z_L = Z0_L
+            theta = i * np.pi / (2 * N)
+            X_R = X0_R
+            Y_R = Y_L + L * np.sin(theta)
+            Z_R = Z_L - L * np.cos(theta)
+
+            X_L_ls.append(X_L)
+            Y_L_ls.append(Y_L)
+            Z_L_ls.append(Z_L)
+            X_R_ls.append(X_R)
+            Y_R_ls.append(Y_R)
+            Z_R_ls.append(Z_R)
+        # np.array of [X_L_ls, Y_L_ls, Z_L_ls] with 3 columns
+        action_L = np.array([X_L_ls, Y_L_ls, Z_L_ls]).T
+        action_R = np.array([X_R_ls, Y_R_ls, Z_R_ls]).T
+        return action_L, action_R, dt
 
 if __name__ == '__main__':
     gp = Grasp()
+    gp.env.gripper_open()
     gp.env.reset()
     gp.env.gripper_close()
     gp.env.robot_right.set_gripper_open(True)
@@ -110,6 +140,12 @@ if __name__ == '__main__':
     # distance in z-axis of two grippers
     z_dist = gp.env.robot_left.get_ee_pose_in_origin()[0][2] - gp.env.robot_right.get_ee_pose_in_origin()[0][2]
     print('z_dist:', z_dist)
+
+    POSI_start_L = gp.env.robot_left.get_ee_pose_in_origin()[0] + np.array([0, 0.165, 0])
+    POSI_start_R = gp.env.robot_right.get_ee_pose_in_origin()[0] - np.array([0.165, 0, 0])
+    actionL, actionR, dt = gp.generate_stretch_traj(POSI_start_L, POSI_start_R, z_dist, 50, 5)
+    actions = np.concatenate((actionR, actionL), axis=1) # 6 columns
+    # gp.env.step(actions, dt)
 
 
 
