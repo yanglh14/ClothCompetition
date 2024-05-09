@@ -292,7 +292,7 @@ class Robot:
             if self.moving is not True:
                 threading.Thread(target=self.send_cartesian_trajectory, args=(goal, callback)).start()
 
-    def move_to_init_pose(self):
+    def move_to_init_pose(self, dt=5):
 
         goal = FollowCartesianTrajectoryGoal()
 
@@ -302,7 +302,7 @@ class Robot:
             geometry_msgs.Vector3(self.init_pose[0], self.init_pose[1], self.init_pose[2]),
             geometry_msgs.Quaternion(self.init_pose[3], self.init_pose[4], self.init_pose[5], self.init_pose[6])
         )
-        point.time_from_start = rospy.Duration(5)
+        point.time_from_start = rospy.Duration(dt)
         goal.trajectory.points.append(point)
         self.send_traj(goal)
         # self.trajectory_client.send_goal(goal)
