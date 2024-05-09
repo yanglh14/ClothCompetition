@@ -105,40 +105,36 @@ if __name__ == '__main__':
     gp.env.gripper_open()
     gp.env.reset()
     gp.env.gripper_close()
-    gp.env.robot_right.set_gripper_open(True)
+    gp.env.robot_left.set_gripper_open(True)
     print("Initialization finished")
-    print("init posi {rr}:", gp.env.robot_right.init_pose[0:3])
 
-    ## get the mask of the cloth
-    # image = gp.get_image()
-    # mask = clothes_detection(image,'green_leaf')
-    # # cv2.imwrite('../log/mask_comp.png', mask)
+    isTest = False
+    if isTest == False:
+        ## get the mask of the cloth
+        image = gp.get_image()
+        mask = clothes_detection(image,'green_leaf')
+        # cv2.imwrite('../log/mask_comp.png', mask)
 
-    ## get the vox_pc of the mask
-    # cloth_pc = gp.rs_listener.get_pc_given_mask(mask)
-    # # print('cloth_pc:', cloth_pc.shape)
+        ## get the vox_pc of the mask
+        cloth_pc = gp.rs_listener.get_pc_given_mask(mask)
+        # print('cloth_pc:', cloth_pc.shape)
 
-    # sample a grasp POSItion from the point cloud (world frame)
-    # grasp_POSI = gp.sample_grasp_posi(cloth_pc)
-
-    # given a goal position (testing purpose)
-    right_piker_init_POSI = gp.env.robot_right.get_ee_pose_in_origin()[0] + np.array([0.0, -0.165, 0.0])
-    grasp_POSI = right_piker_init_POSI + np.array([0.0, -0.1, -0.3])
+        ## sample a grasp POSItion from the point cloud (world frame)
+        grasp_POSI = gp.sample_grasp_posi(cloth_pc)
+    else:
+        ## given a goal position (testing purpose)
+        right_piker_init_POSI = gp.env.robot_right.get_ee_pose_in_origin()[0] + np.array([0.0, -0.165, 0.0])
+        grasp_POSI = right_piker_init_POSI + np.array([0.0, -0.1, -0.3])
 
     left_piker_cur_POSI = np.round(gp.env.robot_left.get_ee_pose_in_origin()[0] + np.array([-0.165, 0.0, 0.0]), 8)
     print('cur_piker_POSI:', left_piker_cur_POSI)
     print('grasp_POSI:', grasp_POSI)
 
-    ## move R arm to the grasp pose (with initial orientation)(world frame)
-    # # gp.env.move(goal_POSI, arm='right')
-    # # gp.env.move_R_arm(goal_POSI)
-    # gp.env.move_R_arm_steps(grasp_POSI)
-
     ## move L arm to the grasp pose (with initial orientation)(world frame)
-    # gp.env.move_L_arm_steps(grasp_POSI)
+    gp.env.move_L_arm_steps(grasp_POSI)
 
     ## close the gripper
-    # gp.env.robot_right.set_gripper_open(False)
+    gp.env.robot_left.set_gripper_open(False)
 
     # distance in z-axis of two grippers
     z_dist = np.abs(gp.env.robot_left.get_ee_pose_in_origin()[0][2] - gp.env.robot_right.get_ee_pose_in_origin()[0][2])
