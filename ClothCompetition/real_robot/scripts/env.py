@@ -46,6 +46,16 @@ class EnvReal:
 
         self.robot_left.send_traj(traj_left)
         self.robot_right.send_traj(traj_right)
+
+    def step_stretch(self, actions, dt):
+        # input: actions in [steps, action]; dt: dt per step
+
+        traj_left = self.robot_left.prepare_stretch_traj(actions[:, 3:7], dt)
+        # traj_right = self.robot_right.prepare_stretch_traj(actions[:, :3], dt)
+
+        self.robot_left.send_traj(traj_left)
+        # self.robot_right.send_traj(traj_right)
+
     def move(self, pose, arm='left'):
         if arm == 'left':
             goal = self.robot_left.prepare_move(pose)
