@@ -125,6 +125,42 @@ class Robot:
 
         return goal
 
+    # input actions for TCP
+    # output waypoints for EE
+    def prepare_stretch_traj(self, actions, dt):
+        picker_offset = self.picker_to_ee_trans[2]
+        if self.robot_name == "ur10e":
+            # left
+            tcp_to_ee_trans = np.array([0.0, -picker_offset, 0.0])
+        else:
+            # right
+            tcp_to_ee_trans = np.array([+picker_offset, 0.0, 0.0])
+        num_waypts = actions.shape[0]
+        goal = FollowCartesianTrajectoryGoal()
+        time_from_start = 0
+        for i in range(num_waypts):
+            time_from_start = i*dt
+
+            cur_TCP_POSI = actions[i]
+            cur_EE_POSI  = cur_TCP_POSI + tcp_to_ee_trans
+            cur_EE_posi  = self.transform_origin2base(cur_EE_POSI)
+
+            # Create the Pose message
+            pose_msg = geometry_msgs.Pose(
+                geometry_msgs.Vector3(cur_EE_posi[0], cur_EE_posi[1], cur_EE_posi[2]),
+                geometry_msgs.Quaternion(self.init_pose[3], self.init_pose[4], self.init_pose[5], self.init_pose[6])
+            )
+            # Create the CartesianTrajectoryPoint
+            point = CartesianTrajectoryPoint()
+            point.pose = pose_msg
+            point.time_from_start = rospy.Duration(time_from_start)
+
+            # Add to the goal
+            goal.trajectory.points.append(point)
+        return goal
+
+
+
     def prepare_move(self, pose, dt=5):
         goal_position = self.transform_origin2base(pose) + self.picker_to_ee_trans
         goal = FollowCartesianTrajectoryGoal()
