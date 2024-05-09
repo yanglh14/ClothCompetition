@@ -115,7 +115,8 @@ class VCDynamics(object):
         rollout_steps = dataset.rollout_steps[traj_id]
 
         # Todo: debug
-        pc_infer = [data['pointcloud']]
+        pc_infer = []
+        picked_points_infer = []
         for t in range(0, (rollout_steps//pred_time_interval)*pred_time_interval - pred_time_interval,
                        pred_time_interval):
             t_data = dataset.load_rollout_data(traj_id, t)
@@ -128,6 +129,7 @@ class VCDynamics(object):
             gt_vel = velocity_his[:,-3:] + np.array(gt_accel) * self.args.dt * pred_time_interval
             pc_pos = _data['pointcloud'] + np.array(gt_vel) * self.args.dt * pred_time_interval
             pc_infer.append(pc_pos)
+            picked_points_infer.append(_data['picked_points_idx'])
 
             if m_name == 'vsbl':
                 traj_particle_pos.append(t_data['positions'][t_data['downsample_idx']][data['partial_pc_mapped_idx']])
@@ -166,7 +168,8 @@ class VCDynamics(object):
                 'rollout_pos_error': pos_errors,
                 'gt_positions_full': traj_particle_full,
                 'picked_points': res['picked_points'],
-                'pc_infer': np.array(pc_infer)}
+                'pc_infer': np.array(pc_infer),
+                'picked_points_infer': np.array(picked_points_infer)}
 
     def train(self):
         # Training loop
@@ -249,11 +252,11 @@ class VCDynamics(object):
                                  planning_error=np.array(traj_rollout_info['planning_error']).mean()))
                         frames_gt_full = visualize(self.datasets[phase].env, traj_rollout_info['gt_positions_full'],
                                                  traj_rollout_info['shape_positions'],
-                                                 traj_rollout_info['config_id'], picked_particles=traj_rollout_info['picked_points'], show=True)
+                                                 traj_rollout_info['config_id'])
 
-                        frames_gt_infer = visualize(self.datasets[phase].env, traj_rollout_info['pc_infer'][1:],
+                        frames_gt_infer = visualize(self.datasets[phase].env, traj_rollout_info['pc_infer'][:],
                                               traj_rollout_info['shape_positions'],
-                                              traj_rollout_info['config_id'])
+                                              traj_rollout_info['config_id'], picked_particles=traj_rollout_info['picked_points_infer'], show=True)
 
                         frames_model = visualize(self.datasets[phase].env, traj_rollout_info['model_positions'],
                                                  traj_rollout_info['shape_positions'],
@@ -372,7 +375,7 @@ class VCDynamics(object):
         pc_pos = model_input_data['pointcloud']
         pc_vel_his = model_input_data['vel_his']
         picker_pos = model_input_data['picker_position']
-        picked_particles = model_input_data['picked_points_idx'] # picked point index
+        picked_points_idx = model_input_data['picked_points_idx'] # picked point index
         scene_params = model_input_data['scene_params']
         observable_particle_index = model_input_data['partial_pc_mapped_idx']
         rest_dist = model_input_data.get('rest_dist', None)
@@ -406,7 +409,7 @@ class VCDynamics(object):
                     'vel_his': pc_vel_his,
                     'picker_position': picker_pos,
                     'action': actions[t],
-                    'picked_points': picked_particles,
+                    'picked_points_idx': picked_points_idx,
                     'scene_params': scene_params,
                     'partial_pc_mapped_idx': observable_particle_index if not robot_exp else range(len(pc_pos)),
                     'mesh_edges': mesh_edges,

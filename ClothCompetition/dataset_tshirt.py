@@ -13,9 +13,9 @@ from ClothCompetition.utils.camera_utils import get_observable_particle_index, g
 from ClothCompetition.utils.data_utils import PrivilData
 from softgym.utils.visualization import save_numpy_as_gif
 
-class ClothDataset(Dataset):
+class TshirtDataset(Dataset):
     def __init__(self, args, input_types, phase, env):
-        super(ClothDataset).__init__()
+        super(TshirtDataset).__init__()
         self.input_types = input_types
         self.args = args
         self.phase = phase
@@ -80,6 +80,68 @@ class ClothDataset(Dataset):
                            'picked_particles']  # point cloud position by back-projecting the depth image
         self.vcd_edge = None
         self.skipped =0
+
+        # SunHR: read edge map file
+        current_dir = os.path.dirname(__file__)
+        root_dir = os.path.dirname(current_dir)
+        data_dir = os.path.join(root_dir, 'softgym', "PyFlex", "data")
+        edge_map_file = os.path.join(data_dir, "Tshirt_obj_edgemap_id.txt")
+        with open(edge_map_file, 'r') as f:
+            edge_map_lines = f.readlines()
+
+        # The first id of the lines are senders, the second id of the lines are receivers
+        raw_senders = []
+        raw_receivers = []
+        for line_str in edge_map_lines:
+            line = line_str.split()
+            sender_id = int(line[0])
+            receiver_id = int(line[1])
+            raw_senders.append(sender_id)
+            raw_receivers.append(receiver_id)
+
+        # There is a problem in the edge map file, with some edges has two directions, but some does not
+        # So for each pair in raw_senders and raw_receivers, we check if the reversed edge has been saved, 
+        # if so, we do not save the current edge.
+        # The resultant edge_map will only consist of a single direction of each edge
+        edge_map = []
+        filtered_edge_map = []
+        for sender, receiver in zip(raw_senders, raw_receivers):
+            # Check for reversed edge pair
+            if [receiver, sender] not in edge_map:
+                # a new edge
+                edge_map.append([sender, receiver])
+            else:
+                filtered_edge_map.append([sender, receiver])
+
+        self.single_direction_senders = [edge[0] for edge in edge_map]
+        self.single_direction_receivers = [edge[1] for edge in edge_map]
+
+        self.senders = np.concatenate([self.single_direction_senders, self.single_direction_receivers], axis=0)
+        self.receivers = np.concatenate([self.single_direction_receivers, self.single_direction_senders], axis=0)
+
+        # Save the filtered edge map to the file
+        edge_map_file = os.path.join(data_dir, "Tshirt_obj_edgemap_cleaned_filtered.txt")
+        with open(edge_map_file, 'w') as f:
+            for sender, receiver in filtered_edge_map:
+                f.write(str(sender) + " " + str(receiver) + "\n")
+
+        # Save the single direction senders and receivers to the edge map file
+        edge_map_file = os.path.join(data_dir, "Tshirt_obj_edgemap_cleaned_single_direction.txt")
+        with open(edge_map_file, 'w') as f:
+            for sender, receiver in zip(self.single_direction_senders, self.single_direction_receivers):
+                f.write(str(sender) + " " + str(receiver) + "\n")
+
+        # Save the senders and receivers to the edge map file
+        edge_map_file = os.path.join(data_dir, "Tshirt_obj_edgemap_cleaned.txt")
+        with open(edge_map_file, 'w') as f:
+            for sender, receiver in zip(self.senders, self.receivers):
+                f.write(str(sender) + " " + str(receiver) + "\n")
+
+        # Get the number of particles
+        self.num_particles = np.max(self.senders)
+
+        pass
+
     def get_curr_env_data(self, init=False):
         # Env info that does not change within one episode
         config = self.env.get_current_config()
@@ -493,16 +555,10 @@ class ClothDataset(Dataset):
         return True
 
     @staticmethod
-    def _get_eight_neighbor(cloth_xdim, cloth_ydim, observable_particle_idx=None):
-        # Connect cloth particles based on the ground-truth edges
-        # Cloth index looks like the following:
-        # 0, 1, ..., cloth_xdim -1
-        # ...
-        # cloth_xdim * (cloth_ydim -1 ), ..., cloth_xdim * cloth_ydim -1
-        cloth_xdim, cloth_ydim = int(cloth_xdim), int(cloth_ydim)
-        all_idx = np.arange(cloth_xdim * cloth_ydim).reshape([cloth_ydim, cloth_xdim])
+    def _get_tshirt_neighbor(num_particles, single_direction_senders, single_direction_receivers, observable_particle_idx=None): 
+        '''Instead of implicitly getting the edges, we explicitly get the edges from the edge map file'''
         if observable_particle_idx is not None:
-            observable_mask = np.zeros(cloth_xdim * cloth_ydim, dtype=np.int)
+            observable_mask = np.zeros(num_particles, dtype=np.int)
             observable_mask[observable_particle_idx] = 1
             # the observable particle index is in the downsample range, e.g., downsample_particle_pos[observable_particle_idx],
             # need to change this to be in the range [0, len(observable_particle_idx) - 1]
@@ -510,36 +566,10 @@ class ClothDataset(Dataset):
             for idx, o_idx in enumerate(observable_particle_idx):
                 edge_map[o_idx] = idx
 
-        senders = []
-        receivers = []
+        senders = single_direction_senders
+        receivers = single_direction_receivers
 
-        # Horizontal connections
-        idx_s = all_idx[:, :-1].reshape(-1, 1)
-        idx_r = idx_s + 1
-        senders.append(idx_s)
-        receivers.append(idx_r)
-
-        # Vertical connections
-        idx_s = all_idx[:-1, :].reshape(-1, 1)
-        idx_r = idx_s + cloth_xdim
-        senders.append(idx_s)
-        receivers.append(idx_r)
-
-        # Diagonal connections
-        idx_s = all_idx[:-1, :-1].reshape(-1, 1)
-        idx_r = idx_s + 1 + cloth_xdim
-        senders.append(idx_s)
-        receivers.append(idx_r)
-
-        idx_s = all_idx[1:, :-1].reshape(-1, 1)
-        idx_r = idx_s + 1 - cloth_xdim
-        senders.append(idx_s)
-        receivers.append(idx_r)
-
-        if observable_particle_idx is None:
-            senders = np.concatenate(senders, axis=0)
-            receivers = np.concatenate(receivers, axis=0)
-        else:
+        if observable_particle_idx is not None:
             obsverable_senders, observable_receivers = [], []
             senders, receivers = np.concatenate(senders).flatten(), np.concatenate(receivers).flatten()
             for s, r in zip(senders, receivers):
@@ -654,7 +684,6 @@ class ClothDataset(Dataset):
         # [0, 1] Mesh edges
         # Calculate undirected edge list and corresponding relative edge attributes (distance vector + magnitude)
         vox_pc, velocity_his, observable_particle_idx = data['pointcloud'], data['vel_his'], data['partial_pc_mapped_idx']
-        _, cloth_xdim, cloth_ydim, _ = data['scene_params']
         rest_dist = data.get('rest_dist', None)
 
         point_tree = scipy.spatial.cKDTree(vox_pc)
@@ -677,9 +706,18 @@ class ClothDataset(Dataset):
         if self.args.use_mesh_edge:
             if 'mesh_edges' not in data or data['mesh_edges'] is None:
                 if input_type == 'vsbl':
-                    mesh_edges = self._get_eight_neighbor(cloth_xdim, cloth_ydim, observable_particle_idx)
+                    mesh_edges = self._get_tshirt_neighbor(
+                        self.num_particles, 
+                        self.single_direction_senders, 
+                        self.single_direction_receivers, 
+                        observable_particle_idx
+                    )
                 else:
-                    mesh_edges = self._get_eight_neighbor(cloth_xdim, cloth_ydim)
+                    mesh_edges = self._get_tshirt_neighbor(
+                        self.num_particles, 
+                        self.single_direction_senders, 
+                        self.single_direction_receivers
+                    )
                 data['mesh_edges'] = mesh_edges  # Pass this back into input data
             else:
                 mesh_edges = data['mesh_edges']
@@ -743,49 +781,6 @@ class ClothDataset(Dataset):
                 print("shape of edges: ", edges.shape)
                 print("shape of edge_attr: ", edge_attr.shape)
         return edges, edge_attr
-
-    def _downsample_mapping(self, cloth_ydim, cloth_xdim, idx, downsample):
-        """ Given the down sample scale, map each point index before down sampling to the index after down sampling
-        downsample: down sample scale
-        """
-        y, x = idx // cloth_xdim, idx % cloth_xdim
-        down_ydim, down_xdim = (cloth_ydim + downsample - 1) // downsample, (cloth_xdim + downsample - 1) // downsample
-        down_y, down_x = y // downsample, x // downsample
-        new_idx = down_y * down_xdim + down_x
-        return new_idx
-
-    def _downsample(self, data, scale=2, test=False):
-        if not test:
-            pos, vel_his, picked_points, picked_point_pos, scene_params = data
-        else:
-            pos, vel_his, pciker_positions, actions, picked_points, scene_params, shape_pos = data
-            # print("in downsample, picked points are: ", picked_points)
-
-        sphere_radius, cloth_xdim, cloth_ydim, config_id = scene_params
-        cloth_xdim, cloth_ydim = int(cloth_xdim), int(cloth_ydim)
-        original_xdim, original_ydim = cloth_xdim, cloth_ydim
-        new_idx = np.arange(cloth_xdim * cloth_ydim).reshape((cloth_ydim, cloth_xdim))
-        new_idx = new_idx[::scale, ::scale]
-        cloth_ydim, cloth_xdim = new_idx.shape
-        new_idx = new_idx.flatten()
-        pos = pos[new_idx, :]
-        vel_his = vel_his[new_idx, :]
-
-        # Remap picked_points
-        pps = []
-        for pp in picked_points.astype('int'):
-            if pp != -1:
-                pps.append(self._downsample_mapping(original_ydim, original_xdim, pp, scale))
-                assert pps[-1] < len(pos)
-            else:
-                pps.append(-1)
-
-        scene_params = sphere_radius, cloth_xdim, cloth_ydim, config_id
-
-        if not test:
-            return (pos, vel_his, pps, picked_point_pos, scene_params), new_idx
-        else:
-            return (pos, vel_his, pciker_positions, actions, pps, scene_params, shape_pos), new_idx
 
     def load_rollout_data(self, idx_rollout, idx_timestep):
         data_cur = load_data(self.data_dir, idx_rollout, idx_timestep, self.data_names)
@@ -859,21 +854,17 @@ class ClothDataset(Dataset):
         for i in range(self.args.num_picker):
             action[i*4:i*4+3] = data_nxt['picker_position'][i,:3] - data_cur['picker_position'][i,:3]
 
-        #find the grapsed points
-        picked_paticles = data_cur['picked_particles']
-        picked_positions = data_cur['positions'][picked_paticles]
-        vox_pc = np.concatenate([vox_pc, picked_positions], axis=0)
-        picked_points_idx = np.array([len(vox_pc) - 2, len(vox_pc) - 1])
-
         # Use clean observable point cloud for bi-partite matching
         # particle_pc_mapped_idx: For each point in pc, give the index of the closest point on the visible downsample mesh
         vox_pc, partial_pc_mapped_idx = get_observable_particle_index_3(vox_pc, partial_particle_pos, threshold=self.args.voxel_size)
         partial_pc_mapped_idx = data_cur['downsample_observable_idx'][
             partial_pc_mapped_idx]  # Map index from the observable downsampled mesh to the downsampled mesh
 
-
-        # distance = scipy.spatial.distance.cdist(picked_positions, vox_pc)
-        # picked_points_idx = np.argmin(distance, axis=1)
+        #find the grapsed points
+        picked_paticles = data_cur['picked_particles']
+        picked_positions = data_cur['positions'][picked_paticles]
+        distance = scipy.spatial.distance.cdist(picked_positions, vox_pc)
+        picked_points_idx = np.argmin(distance, axis=1)
 
         # TODO Later try this new way
         # _, partial_pc_mapped_idx = get_mapping_from_pointcloud_to_partile_nearest_neighbor(vox_pc, partial_particle_pos,
