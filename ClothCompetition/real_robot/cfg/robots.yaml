@@ -13,8 +13,8 @@ robot_left:
 robot_right:
   robot_name: "ur16e"
 #  init_pose: [0.25, -0.1, 0.6, 0.7071, -0.7071, 0, 0]
-  init_pose: [ 0.2, -0, 0.6, 1, 0, 0, 0 ]
-#  init_pose: [ 0.2, -0, 0.6, 0.7071, 0, 0, 0.7071 ]
+#  init_pose: [ 0.2, -0, 0.6, 1, 0, 0, 0 ]
+  init_pose: [ 0.145, 0.265, 0.435, 0.7071, 0, 0, 0.7071 ]
 
   robot_to_origin:
     translation: [ 0.1, 0.5875, 0 ]
