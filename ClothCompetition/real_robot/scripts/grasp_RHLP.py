@@ -122,24 +122,26 @@ if __name__ == '__main__':
     # grasp_POSI = gp.sample_grasp_posi(cloth_pc)
 
     # given a goal position (testing purpose)
-    # goal_POSI = gp.env.robot_right.get_ee_pose_in_origin()[0] +np.array([-0.165, 0.0, 0.0]) + np.array([-0.015, -0.25, -0.2]) # X+0.05 no collision
-    # goal_posi_rr = gp.env.robot_right.transform_origin2base(goal_POSI)
-    # print('grasp posi {rr}:', goal_posi_rr)
-    # grasp_POSI = goal_POSI # grasp position
-    #
-    # print('curre_EE_POSI:', np.round(gp.env.robot_right.get_ee_pose_in_origin()[0], 8))
-    # print('grasp_POSI:', grasp_POSI)
+    right_piker_init_POSI = gp.env.robot_right.get_ee_pose_in_origin()[0] + np.array([0.0, -0.165, 0.0])
+    grasp_POSI = right_piker_init_POSI + np.array([0.0, -0.1, -0.3])
+
+    left_piker_cur_POSI = np.round(gp.env.robot_left.get_ee_pose_in_origin()[0] + np.array([-0.165, 0.0, 0.0]), 8)
+    print('cur_piker_POSI:', left_piker_cur_POSI)
+    print('grasp_POSI:', grasp_POSI)
 
     ## move R arm to the grasp pose (with initial orientation)(world frame)
     # # gp.env.move(goal_POSI, arm='right')
     # # gp.env.move_R_arm(goal_POSI)
     # gp.env.move_R_arm_steps(grasp_POSI)
 
+    ## move L arm to the grasp pose (with initial orientation)(world frame)
+    # gp.env.move_L_arm_steps(grasp_POSI)
+
     ## close the gripper
     # gp.env.robot_right.set_gripper_open(False)
 
     # distance in z-axis of two grippers
-    z_dist = gp.env.robot_left.get_ee_pose_in_origin()[0][2] - gp.env.robot_right.get_ee_pose_in_origin()[0][2]
+    z_dist = np.abs(gp.env.robot_left.get_ee_pose_in_origin()[0][2] - gp.env.robot_right.get_ee_pose_in_origin()[0][2])
     print('z_dist:', z_dist)
     # z_dist=0.4 #<<<< testing purpose
 
@@ -153,7 +155,18 @@ if __name__ == '__main__':
     ## Method2: using 'prepare_move' func.
     POSI_end_L = gp.env.robot_left.get_ee_pose_in_origin()[0] + np.array([0, 0.165, 0]) + np.array([0.4,-z_dist*0.8,0]) # TCP
     # POSI_end_R = gp.env.robot_right.get_ee_pose_in_origin()[0] - np.array([0.165, 0, 0]) + np.array([0,0.0,0.7]) # TCP
-    gp.env.move_arm(POSI_end_L,None,10)
+    # gp.env.move_arm(POSI_end_L,None,10)
+
+    stretch_dist_per_arm = z_dist/2  # min: 0.15, max: 0.4
+    if stretch_dist_per_arm < 0.15:
+        stretch_dist_per_arm = 0.15
+    elif stretch_dist_per_arm > 0.4:
+        stretch_dist_per_arm = 0.4
+
+    stretch_dist4LR = stretch_dist_per_arm  # min: 0.15, max: 0.4
+    stretch_dist4RR = stretch_dist_per_arm  # min: 0.15, max: 0.4
+    gp.env.move_L_arm_stretch(stretch_dist4LR, 10)
+    gp.env.move_R_arm_stretch(stretch_dist4RR, 10)
 
 
 
