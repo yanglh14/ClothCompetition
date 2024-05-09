@@ -176,6 +176,37 @@ class Robot:
 
         return goal
 
+    def prepare_tcp_move(self, pose, dt=5):
+        picker_offset = self.picker_to_ee_trans[2]
+        if self.robot_name == "ur10e":
+            # left
+            tcp_to_ee_trans = np.array([0.0, -picker_offset, 0.0])
+        else:
+            # right
+            tcp_to_ee_trans = np.array([+picker_offset, 0.0, 0.0])
+
+        cur_TCP_POSI = pose
+        cur_EE_POSI = cur_TCP_POSI + tcp_to_ee_trans
+        cur_EE_posi = self.transform_origin2base(cur_EE_POSI)
+
+        goal = FollowCartesianTrajectoryGoal()
+        # Create the Pose message
+        pose_msg = geometry_msgs.Pose(
+            geometry_msgs.Vector3(cur_EE_posi[0], cur_EE_posi[1], cur_EE_posi[2]),
+            geometry_msgs.Quaternion(self.init_pose[3], self.init_pose[4], self.init_pose[5], self.init_pose[6])
+        )
+        # Create the CartesianTrajectoryPoint
+        point = CartesianTrajectoryPoint()
+        point.pose = pose_msg
+        point.time_from_start = rospy.Duration(dt)
+
+        # Add to the goal
+        goal.trajectory.points.append(point)
+
+        return goal
+
+
+
     def prepare_move_grasp(self, goal_POSI, dt=10):
         if len(goal_POSI) != 3:
             raise ValueError("Position should be a 3D vector")

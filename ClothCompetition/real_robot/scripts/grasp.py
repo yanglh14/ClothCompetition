@@ -140,15 +140,19 @@ if __name__ == '__main__':
     # distance in z-axis of two grippers
     z_dist = gp.env.robot_left.get_ee_pose_in_origin()[0][2] - gp.env.robot_right.get_ee_pose_in_origin()[0][2]
     print('z_dist:', z_dist)
-    z_dist=0.4 #<<<< testing purpose
+    # z_dist=0.4 #<<<< testing purpose
 
-    POSI_start_L = gp.env.robot_left.get_ee_pose_in_origin()[0] + np.array([0, 0.165, 0]) # TCP
-    POSI_start_R = gp.env.robot_right.get_ee_pose_in_origin()[0] - np.array([0.165, 0, 0]) # TCP
-    actionL, actionR, dt = gp.generate_stretch_traj4TCP(POSI_start_L, POSI_start_R, z_dist, 50, 5)
-    actions = np.concatenate((actionR, actionL), axis=1) # 6 columns
-    gp.env.step_stretch(actions, dt)
+    ## Mehotd 1: using 'step' func.
+    # POSI_start_L = gp.env.robot_left.get_ee_pose_in_origin()[0] + np.array([0, 0.165, 0]) # TCP
+    # POSI_start_R = gp.env.robot_right.get_ee_pose_in_origin()[0] - np.array([0.165, 0, 0]) # TCP
+    # actionL, actionR, dt = gp.generate_stretch_traj4TCP(POSI_start_L, POSI_start_R, z_dist, 50, 5)
+    # actions = np.concatenate((actionR, actionL), axis=1) # 6 columns
+    # gp.env.step_stretch(actions, dt)
 
-
+    ## Method2: using 'prepare_move' func.
+    POSI_end_L = gp.env.robot_left.get_ee_pose_in_origin()[0] + np.array([0, 0.165, 0]) + np.array([0.4,-z_dist*0.8,0]) # TCP
+    # POSI_end_R = gp.env.robot_right.get_ee_pose_in_origin()[0] - np.array([0.165, 0, 0]) + np.array([0,0.0,0.7]) # TCP
+    gp.env.move_arm(POSI_end_L,None,10)
 
 
 

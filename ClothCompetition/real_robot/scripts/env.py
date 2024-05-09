@@ -79,6 +79,16 @@ class EnvReal:
         goal2 = self.robot_right.prepare_move_grasp(posi,5)
         self.robot_right.send_traj(goal2)
 
+    def move_arm(self, poseL, poseR, dt):
+        if poseL is not None:
+            goal = self.robot_left.prepare_tcp_move(poseL,dt)
+            self.robot_left.send_traj(goal,wait_result=False)
+
+        if poseR is not None:
+            # self.move(poses[0], arm='right')
+            goal = self.robot_right.prepare_tcp_move(poseR,dt)
+            self.robot_right.send_traj(goal,wait_result=False)
+
     def move_dual_arms(self, poses):
         self.move(poses[1], arm='left')
         self.move(poses[0], arm='right')
