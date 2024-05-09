@@ -146,7 +146,10 @@ class Robot:
 
         goal = FollowCartesianTrajectoryGoal()
 
-        goal_position = self.transform_origin2base(goal_POSI)
+        EE_POSI = goal_POSI+np.array([self.picker_to_ee_trans[2], 0, 0])
+        offset_piker = 0.025 # offset to make sure the gripper can grab the object
+        grasp_POSI = EE_POSI - np.array([offset_piker, 0, 0]) # -offset in x direction
+        goal_position = self.transform_origin2base(grasp_POSI)
         point = CartesianTrajectoryPoint()
         point.pose = geometry_msgs.Pose(
             geometry_msgs.Vector3(goal_position[0], goal_position[1], goal_position[2]),
