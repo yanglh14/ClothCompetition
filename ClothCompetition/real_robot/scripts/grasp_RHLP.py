@@ -157,9 +157,15 @@ if __name__ == '__main__':
     # POSI_end_R = gp.env.robot_right.get_ee_pose_in_origin()[0] - np.array([0.165, 0, 0]) + np.array([0,0.0,0.7]) # TCP
     # gp.env.move_arm(POSI_end_L,None,10)
 
-    stretch_dist4LR = 0.2  # min: 0.15, max: 0.4
-    stretch_dist4RR = 0.2  # min: 0.15, max: 0.4
-    gp.env.move_L_arm_stretch(stretch_dist4LR,10)
+    stretch_dist_per_arm = z_dist/2  # min: 0.15, max: 0.4
+    if stretch_dist_per_arm < 0.15:
+        stretch_dist_per_arm = 0.15
+    elif stretch_dist_per_arm > 0.4:
+        stretch_dist_per_arm = 0.4
+
+    stretch_dist4LR = stretch_dist_per_arm  # min: 0.15, max: 0.4
+    stretch_dist4RR = stretch_dist_per_arm  # min: 0.15, max: 0.4
+    gp.env.move_L_arm_stretch(stretch_dist4LR, 10)
     gp.env.move_R_arm_stretch(stretch_dist4RR, 10)
 
 
