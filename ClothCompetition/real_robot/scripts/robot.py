@@ -178,7 +178,7 @@ class Robot:
 
     def prepare_L_arm_ee_move(self, dt=5):
         goal_EE_posi = 0.001*np.array([305,-300,900])
-        goal_EE_quat = euler2quat(-np.pi / 2, 0, -np.pi / 2)
+        goal_EE_quat = euler2quat(np.pi / 2, np.pi / 2, np.pi / 2)
 
         goal = FollowCartesianTrajectoryGoal()
         # Create the Pose message
