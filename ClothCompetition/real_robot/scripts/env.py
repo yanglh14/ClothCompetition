@@ -110,7 +110,7 @@ class EnvReal:
         self.move(poses[0], arm='right')
 
     def reset(self):
-        self.robot_left.move_to_init_pose(dt=15)
+        self.robot_left.move_to_init_pose()
         self.robot_right.move_to_init_pose()
         print('Robot reset')
 
