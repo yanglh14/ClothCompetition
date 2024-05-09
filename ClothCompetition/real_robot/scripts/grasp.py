@@ -67,7 +67,8 @@ class Grasp:
         grasp_position = pc[idx]
         return grasp_position
 
-    def generate_stretch_traj(self, POSI_start_L, POSI_start_R, L, N, dur):
+    def generate_stretch_traj4TCP(self, POSI_start_L, POSI_start_R, L, N, dur):
+        # generate stretch trajectories for TCP of two arms
         X0_L, Y0_L, Z0_L = POSI_start_L
         X0_R, Y0_R, Z0_R = POSI_start_R
         X_R_ls, Y_R_ls, Z_R_ls, X_L_ls, Y_L_ls, Z_L_ls = [], [], [], [], [], []
@@ -108,44 +109,44 @@ if __name__ == '__main__':
     print("init posi {rr}:", gp.env.robot_right.init_pose[0:3])
 
     ## get the mask of the cloth
-    image = gp.get_image()
-    mask = clothes_detection(image,'green_leaf')
-    # cv2.imwrite('../log/mask_comp.png', mask)
+    # image = gp.get_image()
+    # mask = clothes_detection(image,'green_leaf')
+    # # cv2.imwrite('../log/mask_comp.png', mask)
 
     ## get the vox_pc of the mask
-    cloth_pc = gp.rs_listener.get_pc_given_mask(mask)
-    # print('cloth_pc:', cloth_pc.shape)
+    # cloth_pc = gp.rs_listener.get_pc_given_mask(mask)
+    # # print('cloth_pc:', cloth_pc.shape)
 
     # sample a grasp POSItion from the point cloud (world frame)
-    grasp_POSI = gp.sample_grasp_posi(cloth_pc)
-    print('curre_POSI:', np.round(gp.env.robot_right.get_ee_pose_in_origin()[0], 8))
-    print('grasp_POSI:', grasp_POSI)
-    # # given a goal position (testing purpose)
-    # temp = gp.env.robot_right.get_ee_pose_in_origin()[0]
-    # print('cur posi {rr}:', gp.env.robot_right.transform_origin2base(temp))
-    # goal_POSI = gp.env.robot_right.get_ee_pose_in_origin()[0] + np.array([-0.25, -0.35, -0.3]) # X+0.05 no collision
-    # goal_posi_rr = gp.env.robot_right.transform_origin2base(goal_POSI)
-    # print('goal posi {rr}:', goal_posi_rr)
-    # grasp_POSI = goal_POSI # grasp position
+    # grasp_POSI = gp.sample_grasp_posi(cloth_pc)
 
+    # given a goal position (testing purpose)
+    # goal_POSI = gp.env.robot_right.get_ee_pose_in_origin()[0] +np.array([-0.165, 0.0, 0.0]) + np.array([-0.015, -0.25, -0.2]) # X+0.05 no collision
+    # goal_posi_rr = gp.env.robot_right.transform_origin2base(goal_POSI)
+    # print('grasp posi {rr}:', goal_posi_rr)
+    # grasp_POSI = goal_POSI # grasp position
+    #
+    # print('curre_EE_POSI:', np.round(gp.env.robot_right.get_ee_pose_in_origin()[0], 8))
+    # print('grasp_POSI:', grasp_POSI)
 
     ## move R arm to the grasp pose (with initial orientation)(world frame)
-    # gp.env.move(goal_POSI, arm='right')
-    # gp.env.move_R_arm(goal_POSI)
-    gp.env.move_R_arm_steps(grasp_POSI)
+    # # gp.env.move(goal_POSI, arm='right')
+    # # gp.env.move_R_arm(goal_POSI)
+    # gp.env.move_R_arm_steps(grasp_POSI)
 
     ## close the gripper
-    gp.env.robot_right.set_gripper_open(False)
+    # gp.env.robot_right.set_gripper_open(False)
 
     # distance in z-axis of two grippers
     z_dist = gp.env.robot_left.get_ee_pose_in_origin()[0][2] - gp.env.robot_right.get_ee_pose_in_origin()[0][2]
     print('z_dist:', z_dist)
+    z_dist=0.4 #<<<< testing purpose
 
-    POSI_start_L = gp.env.robot_left.get_ee_pose_in_origin()[0] + np.array([0, 0.165, 0])
-    POSI_start_R = gp.env.robot_right.get_ee_pose_in_origin()[0] - np.array([0.165, 0, 0])
-    actionL, actionR, dt = gp.generate_stretch_traj(POSI_start_L, POSI_start_R, z_dist, 50, 5)
+    POSI_start_L = gp.env.robot_left.get_ee_pose_in_origin()[0] + np.array([0, 0.165, 0]) # TCP
+    POSI_start_R = gp.env.robot_right.get_ee_pose_in_origin()[0] - np.array([0.165, 0, 0]) # TCP
+    actionL, actionR, dt = gp.generate_stretch_traj4TCP(POSI_start_L, POSI_start_R, z_dist, 50, 5)
     actions = np.concatenate((actionR, actionL), axis=1) # 6 columns
-    # gp.env.step(actions, dt)
+    gp.env.step_stretch(actions, dt)
 
 
 
