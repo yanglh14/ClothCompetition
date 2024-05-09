@@ -96,9 +96,13 @@ class EnvReal:
             goal = self.robot_right.prepare_tcp_move(poseR,dt)
             self.robot_right.send_traj(goal,wait_result=False)
 
-    def move_L_arm_stretch(self, dt=10):
-        goal = self.robot_left.prepare_L_arm_ee_move(dt)
+    def move_L_arm_stretch(self, dist, dt=10):
+        goal = self.robot_left.prepare_L_arm_ee_move(dist, dt)
         self.robot_left.send_traj(goal, wait_result=False)
+
+    def move_R_arm_stretch(self, dist, dt=10):
+        goal = self.robot_right.prepare_R_arm_ee_move(dist, dt)
+        self.robot_right.send_traj(goal, wait_result=False)
 
 
     def move_dual_arms(self, poses):
@@ -106,7 +110,7 @@ class EnvReal:
         self.move(poses[0], arm='right')
 
     def reset(self):
-        self.robot_left.move_to_init_pose(dt=15)
+        self.robot_left.move_to_init_pose()
         self.robot_right.move_to_init_pose()
         print('Robot reset')
 
