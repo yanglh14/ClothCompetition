@@ -64,9 +64,9 @@ class EnvReal:
 
     def move_R_arm_steps(self, posi):
         # generate goal step by step
-        goal1 = self.robot_right.prepare_move_before_grasp(posi)
+        goal1 = self.robot_right.prepare_move_before_grasp(posi,5)
         self.robot_right.send_traj(goal1)
-        goal2 = self.robot_right.prepare_move_grasp(posi)
+        goal2 = self.robot_right.prepare_move_grasp(posi,5)
         self.robot_right.send_traj(goal2)
 
     def move_dual_arms(self, poses):
