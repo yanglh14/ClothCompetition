@@ -176,8 +176,8 @@ class Robot:
 
         return goal
 
-    def prepare_L_arm_ee_move(self, dt=5):
-        goal_EE_posi = 0.001*np.array([305,-300,900])
+    def prepare_L_arm_ee_move(self, dist, dt=10):
+        goal_EE_posi = 0.001*np.array([670-165-dist*1000,-300,900])
         goal_EE_quat = euler2quat(np.pi / 2, np.pi / 2, np.pi / 2)
 
         goal = FollowCartesianTrajectoryGoal()
@@ -196,8 +196,8 @@ class Robot:
 
         return goal
 
-    def prepare_R_arm_ee_move(self, dt=5):
-        goal_EE_posi = 0.001*np.array([150,300,900])
+    def prepare_R_arm_ee_move(self, dist, dt=5):
+        goal_EE_posi = 0.001*np.array([350-dist*1000,300,900])
         # goal_EE_quat = euler2quat(np.pi / 2, np.pi / 2, np.pi / 2)
 
         goal = FollowCartesianTrajectoryGoal()
