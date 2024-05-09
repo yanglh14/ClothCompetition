@@ -111,9 +111,11 @@ class ClothCompEnv(FlexEnv):
             # (https://cloud.ilabt.imec.be/index.php/s/Sy945rbamg8JMgR?dir=undefined&path=%2Fdatasets%2Fcloth_competition_dataset_0000%2Fsample_000000%2Fobservation_result&openfile=1161472134)
             # Note that in simulation, the rendering does not consider the focal length of the camera,
             # so we will apply additional scaling to the camera position.
-            pos_scale = 1.5
-            angle_scale = 1.2
-            cam_pos, cam_angle = pos_scale*np.array([-1.03, 0.93, -0.03]), np.array([-1.585, -0.405*angle_scale, 0.0])
+
+            # Yang Linhan: we use [1.3, 0.93, 0.03] for the camera position instead of [-1.3, 0.93, -0.03], finally inverse the coordinates
+            pos_scale = 1.0
+            angle_scale = 1.0
+            cam_pos, cam_angle = pos_scale*np.array([1.3, 0.93, 0.03]), np.array([np.pi/2, -1.976+np.pi/2, 0])
         config = {
             'ClothPos': [-1.6, 2.0, -0.8],
             # Changed cloth size range according to the competition rules
