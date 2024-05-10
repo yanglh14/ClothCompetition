@@ -52,8 +52,10 @@ class Grasp:
         assert z_max > z_min, 'z_max should be larger than z_min'
         z_interval = z_max - z_min
 
-        pool_part = np.array([1,2,3,4]) # 4 upper parts, 1 bottom part
-        target_part = np.random.choice(pool_part, 1, p=[0.25, 0.25, 0.25, 0.25])[0]
+        pool_part = np.array([1,2,3,4]) # 1 bottom part, 4 upper part
+        # set random seed according to the current time
+        np.random.seed(int(time.time()))
+        target_part = np.random.choice(pool_part, 1, p=[0.4, 0.3, 0.2, 0.1])[0]
         # determine the region of target part
         z_roi_min = z_min + z_interval * (target_part - 1) / 4
         z_roi_max = z_min + z_interval * target_part / 4
