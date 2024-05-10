@@ -36,7 +36,7 @@ def show_box(box, ax):
 
 path_to_checkpoint = "/home/yang/Projects/ClothCompetition/ClothCompetition/pth/sam_vit_h_4b8939.pth"
 model_type = "vit_h"
-dir_image = "/home/yang/Projects/ClothCompetition/ClothCompetition/real_robot/log/rgb_comp.png"
+dir_image = "/home/yang/Projects/ClothCompetition/ClothCompetition/real_robot/log/mask_comp_failure.png"
 
 ## load image
 image = cv2.imread(dir_image)
@@ -54,8 +54,10 @@ predictor = SamPredictor(sam)
 predictor.set_image(image)
 
 ## find a specific object with ONE point
-input_point = np.array([[345, 226]])
-input_label = np.array([1])
+# input_point = np.array([[345, 226]])
+# input_label = np.array([1])
+input_point = np.array([[345, 226], [345, 62]])
+input_label = np.array([1, 1])
 masks, scores, logits = predictor.predict(
     point_coords=input_point,
     point_labels=input_label,
