@@ -196,6 +196,12 @@ def segment_cloth(image):
         point_labels=input_label,
         multimask_output=False,
     )
+    # set the mask to 0 or 255
+    mask = np.where(mask > 0.5, 255, 0).astype(np.uint8)
+    kernel = np.ones((3, 3), np.uint8)
+    mask = mask[0]
+    mask = cv2.erode(mask, kernel, iterations=3)
+
     # plt.figure(figsize=(10, 10))
     # plt.imshow(image)
     # show_mask(mask, plt.gca())

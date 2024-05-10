@@ -143,4 +143,4 @@ DPI-Net/dump_*/
 
 test_*/
 imgs/
-*log/
+real_robot/log/

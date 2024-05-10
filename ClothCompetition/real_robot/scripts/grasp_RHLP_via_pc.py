@@ -62,6 +62,8 @@ class Grasp:
         if idx_arr is not None:
             # sample a point from idx_ls
             idx = np.random.choice(idx_arr)
+            # model predict the best grasp position
+
         else:
             # throw a warning
             raise ValueError('No point in the region of interest')
@@ -124,6 +126,12 @@ if __name__ == '__main__':
         ## get the vox_pc of the mask
         cloth_pc = gp.rs_listener.get_pc_given_mask(mask)
         # print('cloth_pc:', cloth_pc.shape)
+        np.save('../log/cloth_pc.npy', cloth_pc)
+        # save mask
+        cv2.imwrite('../log/mask.png', mask)
+        # filter the image with mask
+        image_filtered = cv2.bitwise_and(image, image, mask=mask)
+        cv2.imwrite('../log/image_filtered.png', image_filtered)
 
         ## sample a grasp POSItion from the point cloud (world frame)
         grasp_POSI = gp.sample_grasp_posi(cloth_pc)

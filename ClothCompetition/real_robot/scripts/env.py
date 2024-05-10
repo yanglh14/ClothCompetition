@@ -110,8 +110,8 @@ class EnvReal:
         self.move(poses[0], arm='right')
 
     def reset(self):
-        self.robot_left.move_to_init_pose()
-        self.robot_right.move_to_init_pose()
+        self.robot_left.move_to_init_pose(wait_result=False)
+        self.robot_right.move_to_init_pose(wait_result=True)
         print('Robot reset')
 
     def get_vox_pc(self):
