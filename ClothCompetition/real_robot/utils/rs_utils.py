@@ -141,6 +141,25 @@ def clothes_detection(image,cloth_name):
 
     return mask
 
+def mask_no_rgb(image):
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+    # save h,s,v three files
+    # cv2.imwrite('../log/h_comp.png', hsv[:, :, 0])
+    # cv2.imwrite('../log/s_comp.png', hsv[:, :, 1])
+    # cv2.imwrite('../log/v_comp.png', hsv[:, :, 2])
+    # save the image
+    # cv2.imwrite('../log/rgb_comp.png', image)
+    # crop and save a part of image within the given area uv_range
+    uv_range = [80, 413, 284, 412]
+    # image_crop = image[uv_range[0]:uv_range[1], uv_range[2]:uv_range[3]]
+    # cv2.imwrite('../log/rgb_crop.png', image_crop)
+    # generate the mask: the given area uv_range are white(255), others are 0
+    mask = np.zeros(image.shape[:2], dtype="uint8")
+    mask[uv_range[0]:uv_range[1], uv_range[2]:uv_range[3]] = 255
+    # cv2.imwrite('../log/mask_comp.png', mask)
+
+    return mask
+
 def transform_point_cloud(point_cloud):
 
     # Convert point cloud to homogeneous coordinates (add a row of 1's)

@@ -16,7 +16,7 @@ import threading
 from ClothCompetition.real_robot.scripts.robot import Robot
 from ClothCompetition.real_robot.scripts.env import EnvReal
 from ClothCompetition.real_robot.scripts.rs_camera import RSListener
-from ClothCompetition.real_robot.utils.rs_utils import clothes_detection
+from ClothCompetition.real_robot.utils.rs_utils import clothes_detection,mask_no_rgb
 
 class Grasp:
     def __init__(self):
@@ -113,7 +113,10 @@ if __name__ == '__main__':
     if isTest == False:
         ## get the mask of the cloth
         image = gp.get_image()
-        mask = clothes_detection(image,'green_leaf')
+        ## method1: using RGB for data collection
+        # mask = clothes_detection(image,'green_leaf')
+        ## method2: mask the given area
+        mask = mask_no_rgb(image)
         # cv2.imwrite('../log/mask_comp.png', mask)
 
         ## get the vox_pc of the mask
@@ -164,7 +167,5 @@ if __name__ == '__main__':
     stretch_dist4RR = stretch_dist_per_arm  # min: 0.15, max: 0.4
     gp.env.move_L_arm_stretch(stretch_dist4LR, 10)
     gp.env.move_R_arm_stretch(stretch_dist4RR, 10)
-
-
 
 
