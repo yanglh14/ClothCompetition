@@ -605,39 +605,40 @@ class Robot:
         return positions_xyz
 
 if __name__ == "__main__":
-    rospy.init_node('robot_control', anonymous=True)
-
-    path = os.path.dirname(os.path.abspath(__file__))
-    with open(path + '/../cfg/robots.yaml', 'r') as file:
-        config = yaml.safe_load(file)
-
-    # init controller client and move to init pose
-    robot_left = Robot(config['robot_left'])
-    robot_right = Robot(config['robot_right'])
-
-    robot_left.move_to_init_pose()
-    robot_right.move_to_init_pose()
-
-    current_picker_position = np.array([robot_left.get_picker_pose_in_origin(), robot_right.get_picker_pose_in_origin()])
-    actions = robot_right._collect_trajectory(current_picker_position, np.array([[0.2, -0.2, 0.1], [0.2, 0.2, 0.1]]))
-    traj_left = robot_left.prepare_traj(actions[:,:3], robot_right.dt)
-    traj_right = robot_right.prepare_traj(actions[:,4:7], robot_right.dt)
-
-    robot_left.send_traj(traj_left)
-    robot_right.send_traj(traj_right)
-    print(actions)
-
-    # save log to file
-    try:
-        while not rospy.is_shutdown():
-            rospy.sleep(1)
-            print("Waiting for rospy shutdown")
-
-        # save log to file
-        # np.save('../log/traj_log', pose_cli.pose_log)
-        # np.save('../log/traj_desired', client.trajectory_log)
-
-        # print("Saving log to file")
-
-    except KeyboardInterrupt:
-        print("Exit")
+    raise NotImplementedError
+    # rospy.init_node('robot_control', anonymous=True)
+    #
+    # path = os.path.dirname(os.path.abspath(__file__))
+    # with open(path + '/../cfg/robots.yaml', 'r') as file:
+    #     config = yaml.safe_load(file)
+    #
+    # # init controller client and move to init pose
+    # robot_left = Robot(config['robot_left'])
+    # robot_right = Robot(config['robot_right'])
+    #
+    # robot_left.move_to_init_pose()
+    # robot_right.move_to_init_pose()
+    #
+    # current_picker_position = np.array([robot_left.get_picker_pose_in_origin(), robot_right.get_picker_pose_in_origin()])
+    # actions = robot_right._collect_trajectory(current_picker_position, np.array([[0.2, -0.2, 0.1], [0.2, 0.2, 0.1]]))
+    # traj_left = robot_left.prepare_traj(actions[:,:3], robot_right.dt)
+    # traj_right = robot_right.prepare_traj(actions[:,4:7], robot_right.dt)
+    #
+    # robot_left.send_traj(traj_left)
+    # robot_right.send_traj(traj_right)
+    # print(actions)
+    #
+    # # save log to file
+    # try:
+    #     while not rospy.is_shutdown():
+    #         rospy.sleep(1)
+    #         print("Waiting for rospy shutdown")
+    #
+    #     # save log to file
+    #     # np.save('../log/traj_log', pose_cli.pose_log)
+    #     # np.save('../log/traj_desired', client.trajectory_log)
+    #
+    #     # print("Saving log to file")
+    #
+    # except KeyboardInterrupt:
+    #     print("Exit")
