@@ -17,7 +17,7 @@ from ClothCompetition.real_robot.scripts.robot import Robot
 from ClothCompetition.real_robot.scripts.env import EnvReal
 from ClothCompetition.real_robot.scripts.rs_camera import RSListener
 from ClothCompetition.real_robot.utils.rs_utils import clothes_detection,mask_no_rgb,segment_cloth
-
+import matplotlib.pyplot as plt
 class Grasp:
     def __init__(self):
         self.env = EnvReal()
@@ -71,8 +71,45 @@ class Grasp:
             raise ValueError('No point in the region of interest')
         # find out the corresponding pc
         grasp_position = pc[idx]
+        middle_point = self.env.robot_right.get_picker_pose_in_origin()[0:2]
+        grasp_point_xy = grasp_position[0:2]
+        # calculate the angle between the grasp position and the middle point
+        angle = np.arctan2(grasp_point_xy[1] - middle_point[1], grasp_point_xy[0] - middle_point[0])
 
+        self.plot_pc(pc, grasp_position)
         return grasp_position
+
+    def plot_pc(self, pc, grasp_position):
+        point_cloud = pc
+        # First, convert your point cloud to a numpy array for easier manipulation
+        point_cloud_np = np.array(point_cloud)
+
+        # Split your NumPy array into positions (x, y, z) and colors (r, g, b)
+        positions = point_cloud_np[:, :3]
+
+        # Create a new matplotlib figure and axis.
+        fig = plt.figure()
+        # window size to be square
+        fig.set_size_inches(10, 10)
+        ax = fig.add_subplot(111, projection='3d')
+
+        # Scatter plot using the x, y, and z coordinates and the color information
+        ax.scatter(positions[:, 0], positions[:, 1], positions[:, 2], c=[0, 0, 1], s=1)  # s is the size of the points
+
+        # highlight the grasp position with idx
+        ax.scatter(grasp_position[0], grasp_position[1], grasp_position[2], c=[1, 0, 0], s=3)
+
+        ax.set_xlim3d(-0, 1.0)
+        ax.set_ylim3d(-0.5, 0.5)
+        ax.set_zlim3d(-0, 1.0)
+
+        # Set labels for axes
+        ax.set_xlabel('X Label')
+        ax.set_ylabel('Y Label')
+        ax.set_zlabel('Z Label')
+
+        # Show the plot
+        plt.show()
 
     def generate_stretch_traj4TCP(self, POSI_start_L, POSI_start_R, L, N, dur):
         # generate stretch trajectories for TCP of two arms

@@ -533,5 +533,5 @@ def mat2quat(M):
     return q
 
 if __name__ == '__main__':
-    print(euler2quat(np.pi/2,np.pi/2,np.pi/2))
+    print(euler2quat(-np.pi/2, 0, -np.pi/6))
     # print(quat2euler([0.915917,-0.0261175,-0.000283125,-0.400518]))
