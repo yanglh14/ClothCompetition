@@ -23,10 +23,10 @@ class Grasp:
         self.env = EnvReal()
         self.rs_listener = RSListener()
 
-        # def safe region (y-z plane) for Right Robot to grasp
-        offset_piker = self.env.robot_left.picker_to_ee_trans[2]
-        sr_mid_y = self.env.robot_left.init_pose[0]+offset_piker
-        sr_mid_Y = self.env.robot_left.robot_to_origin_trans[1]+sr_mid_y
+        # def safe region (y-z plane) for legt Robot to grasp
+        offset_piker = self.env.robot_right.picker_to_ee_trans[2]
+        sr_mid_y = self.env.robot_right.init_pose[0]+offset_piker
+        sr_mid_Y = self.env.robot_right.robot_to_origin_trans[1]-sr_mid_y
         sr_Y_max = sr_mid_Y + 0.08
         sr_Y_min = sr_mid_Y - 0.08
         self.Y_range = [sr_Y_min, sr_Y_max]
@@ -38,11 +38,13 @@ class Grasp:
 
     def sample_grasp_posi(self, pc):
         z_offset = 0.3
-        sr_Y_min, sr_Y_max = self.Y_range
+        # sr_Y_min, sr_Y_max = self.Y_range
         # set region of interest (roi)
+        pc = pc[pc[:, 0] > 0]
         x = pc[:, 0]
         y = pc[:, 1]
         z = pc[:, 2]
+        sr_Y_min, sr_Y_max =  np.min(y), np.max(y)
         z_min, z_max = np.min(z), np.max(z)
         z_max = z_max - z_offset # manually set max height for grasping
         z_interval = z_max - z_min
@@ -69,6 +71,7 @@ class Grasp:
             raise ValueError('No point in the region of interest')
         # find out the corresponding pc
         grasp_position = pc[idx]
+
         return grasp_position
 
     def generate_stretch_traj4TCP(self, POSI_start_L, POSI_start_R, L, N, dur):
@@ -125,13 +128,13 @@ if __name__ == '__main__':
 
         ## get the vox_pc of the mask
         cloth_pc = gp.rs_listener.get_pc_given_mask(mask)
-        # print('cloth_pc:', cloth_pc.shape)
-        np.save('../log/cloth_pc.npy', cloth_pc)
-        # save mask
-        cv2.imwrite('../log/mask.png', mask)
-        # filter the image with mask
-        image_filtered = cv2.bitwise_and(image, image, mask=mask)
-        cv2.imwrite('../log/image_filtered.png', image_filtered)
+        # # print('cloth_pc:', cloth_pc.shape)
+        # np.save('../log/cloth_pc.npy', cloth_pc)
+        # # save mask
+        # cv2.imwrite('../log/mask.png', mask)
+        # # filter the image with mask
+        # image_filtered = cv2.bitwise_and(image, image, mask=mask)
+        # cv2.imwrite('../log/image_filtered.png', image_filtered)
 
         ## sample a grasp POSItion from the point cloud (world frame)
         grasp_POSI = gp.sample_grasp_posi(cloth_pc)
