@@ -274,13 +274,14 @@ class Robot:
         return goal
 
     def prepare_move_before_grasp(self, goal_POSI, dt=10, z_angle=None):
-        if len(goal_POSI) != 3:
+        if len(goal_POSI) != 3: # goal_POSI is grasp POSI
             raise ValueError("Position should be a 3D vector")
 
         goal = FollowCartesianTrajectoryGoal()
-        bias = self.get_ee_pose_in_origin()[0][0] - goal_POSI[0] - 0.165
+
         if z_angle is not None:
-            midpt_POSI = np.array([self.get_ee_pose_in_origin()[0][0], goal_POSI[1]+ np.tan(z_angle)*bias, goal_POSI[2]])
+            bias = 0.1+0.165
+            midpt_POSI = np.array([goal_POSI[0]+np.cos(z_angle)*bias, goal_POSI[1]+np.sin(z_angle)*bias, goal_POSI[2]])
             goal_quat = euler2quat(-np.pi/2, 0, z_angle)
         else:
             midpt_POSI = np.array([self.get_ee_pose_in_origin()[0][0], goal_POSI[1], goal_POSI[2]])

@@ -52,7 +52,7 @@ class Grasp:
         assert z_max > z_min, 'z_max should be larger than z_min'
         z_interval = z_max - z_min
 
-        pool_part = np.array([1,2,3,4])
+        pool_part = np.array([1,2,3,4]) # 4 upper parts, 1 bottom part
         target_part = np.random.choice(pool_part, 1, p=[0.25, 0.25, 0.25, 0.25])[0]
         # determine the region of target part
         z_roi_min = z_min + z_interval * (target_part - 1) / 4
@@ -196,12 +196,11 @@ class Grasp:
 
         cv2.destroyAllWindows()
         return edges
+
 if __name__ == '__main__':
     gp = Grasp()
-    # gp.get_edge()
     # gp.env.gripper_open()
     gp.env.robot_left.set_gripper_open(True)
-
     gp.env.reset()
     gp.env.gripper_close()
     gp.env.robot_left.set_gripper_open(True)
@@ -219,6 +218,7 @@ if __name__ == '__main__':
         ## method3: using "segment_anything"
         mask = segment_cloth(image)
         cv2.imwrite('../log/mask_comp.png', mask)
+        print("Masking finished")
 
         ## get the vox_pc of the mask
         cloth_pc = gp.rs_listener.get_pc_given_mask(mask)
@@ -231,7 +231,8 @@ if __name__ == '__main__':
         # cv2.imwrite('../log/image_filtered.png', image_filtered)
 
         ## sample a grasp POSItion from the point cloud (world frame)
-        grasp_POSI, z_angle = gp.sample_grasp_posi(cloth_pc)
+        grasp_POSI, z_angle = gp.sample_grasp_posi(cloth_pc) # rad
+        print("Grasp pose sampled")
     else:
         ## given a goal position (testing purpose)
         right_piker_init_POSI = gp.env.robot_right.get_ee_pose_in_origin()[0] + np.array([0.0, -0.165, 0.0])

@@ -81,7 +81,7 @@ class EnvReal:
 
     def move_L_arm_steps(self, posi, z_angle):
         # generate goal step by step
-        goal1 = self.robot_left.prepare_move_before_grasp(posi,5)
+        goal1 = self.robot_left.prepare_move_before_grasp(posi,5, z_angle)
         self.robot_left.send_traj(goal1)
         goal2 = self.robot_left.prepare_move_grasp(posi,5, z_angle)
         self.robot_left.send_traj(goal2)
