@@ -93,15 +93,16 @@ class Grasp:
             raise ValueError('No point in the region of interest')
         # # find out the corresponding pc
         # grasp_position = pc[idx]
-        middle_point = self.env.robot_right.get_picker_pose_in_origin()[0:2]
+        # middle_line_xy = self.env.robot_right.get_picker_pose_in_origin()[0:2]
+        middle_line_xy = self.env.robot_right.get_ee_pose_in_origin()[0][0:2] + np.array([0, -0.165])
         grasp_point_xy = grasp_position[0:2]
-        # calculate the angle between the grasp position and the middle point
-        z_angle = np.arctan2(grasp_point_xy[1] - middle_point[1], grasp_point_xy[0] - middle_point[0])
+        # calculate the angle between the grasp position and the middle line
+        z_angle = np.arctan2(grasp_point_xy[1] - middle_line_xy[1], grasp_point_xy[0] - middle_line_xy[0])
 
         self.plot_pc(pc, grasp_position, z_angle)
         return grasp_position, z_angle
 
-    def plot_pc(self, pc, grasp_position,z_angle):
+    def plot_pc(self, pc, grasp_position, z_angle):
         point_cloud = pc
         # First, convert your point cloud to a numpy array for easier manipulation
         point_cloud_np = np.array(point_cloud)
