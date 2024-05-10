@@ -247,20 +247,26 @@ class Robot:
 
 
 
-    def prepare_move_grasp(self, goal_POSI, dt=10):
+    def prepare_move_grasp(self, goal_POSI, dt=10, z_angle=None):
         if len(goal_POSI) != 3:
             raise ValueError("Position should be a 3D vector")
 
         goal = FollowCartesianTrajectoryGoal()
-
-        EE_POSI = goal_POSI+np.array([self.picker_to_ee_trans[2], 0, 0])
+        if z_angle is not None:
+            EE_POSI = goal_POSI
+            EE_POSI[0] += self.picker_to_ee_trans[2]*np.cos(z_angle)
+            EE_POSI[1] += self.picker_to_ee_trans[2]*np.sin(z_angle)
+            goal_quat = euler2quat(-np.pi/2, 0, z_angle)
+        else:
+            EE_POSI = goal_POSI+np.array([self.picker_to_ee_trans[2], 0, 0])
+            goal_quat = self.init_pose[3:]
         offset_piker = 0.025 # offset to make sure the gripper can grab the object
         grasp_POSI = EE_POSI - np.array([offset_piker, 0, 0]) # -offset in x direction
         goal_position = self.transform_origin2base(grasp_POSI)
         point = CartesianTrajectoryPoint()
         point.pose = geometry_msgs.Pose(
             geometry_msgs.Vector3(goal_position[0], goal_position[1], goal_position[2]),
-            geometry_msgs.Quaternion(self.init_pose[3], self.init_pose[4], self.init_pose[5], self.init_pose[6])
+            geometry_msgs.Quaternion(goal_quat[0], goal_quat[1], goal_quat[2], goal_quat[3])
         )
         point.time_from_start = rospy.Duration(dt)
         goal.trajectory.points.append(point)

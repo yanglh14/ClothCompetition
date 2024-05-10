@@ -74,12 +74,12 @@ class Grasp:
         middle_point = self.env.robot_right.get_picker_pose_in_origin()[0:2]
         grasp_point_xy = grasp_position[0:2]
         # calculate the angle between the grasp position and the middle point
-        angle = np.arctan2(grasp_point_xy[1] - middle_point[1], grasp_point_xy[0] - middle_point[0])
+        z_angle = np.arctan2(grasp_point_xy[1] - middle_point[1], grasp_point_xy[0] - middle_point[0])
 
-        self.plot_pc(pc, grasp_position)
-        return grasp_position
+        self.plot_pc(pc, grasp_position, z_angle)
+        return grasp_position, z_angle
 
-    def plot_pc(self, pc, grasp_position):
+    def plot_pc(self, pc, grasp_position,z_angle):
         point_cloud = pc
         # First, convert your point cloud to a numpy array for easier manipulation
         point_cloud_np = np.array(point_cloud)
@@ -98,6 +98,9 @@ class Grasp:
 
         # highlight the grasp position with idx
         ax.scatter(grasp_position[0], grasp_position[1], grasp_position[2], c=[1, 0, 0], s=3)
+        # plot a arrow from the grasp point with angle
+        ax.quiver(grasp_position[0], grasp_position[1], grasp_position[2], 0.1 * np.cos(z_angle), 0.1 * np.sin(z_angle), 0,
+                  color='red')
 
         ax.set_xlim3d(-0, 1.0)
         ax.set_ylim3d(-0.5, 0.5)
@@ -174,18 +177,18 @@ if __name__ == '__main__':
         # cv2.imwrite('../log/image_filtered.png', image_filtered)
 
         ## sample a grasp POSItion from the point cloud (world frame)
-        grasp_POSI = gp.sample_grasp_posi(cloth_pc)
+        grasp_POSI, z_angle = gp.sample_grasp_posi(cloth_pc)
     else:
         ## given a goal position (testing purpose)
         right_piker_init_POSI = gp.env.robot_right.get_ee_pose_in_origin()[0] + np.array([0.0, -0.165, 0.0])
         grasp_POSI = right_piker_init_POSI + np.array([0.0, -0.1, -0.3])
-
+        z_angle = 0
     left_piker_cur_POSI = np.round(gp.env.robot_left.get_ee_pose_in_origin()[0] + np.array([-0.165, 0.0, 0.0]), 8)
     print('cur_piker_POSI:', left_piker_cur_POSI)
-    print('grasp_POSI:', grasp_POSI)
+    print('grasp_POSI:', grasp_POSI, 'z_angle:', z_angle)
 
     ## move L arm to the grasp pose (with initial orientation)(world frame)
-    gp.env.move_L_arm_steps(grasp_POSI)
+    gp.env.move_L_arm_steps(grasp_POSI, z_angle)
 
     ## close the gripper
     gp.env.robot_left.set_gripper_open(False)
