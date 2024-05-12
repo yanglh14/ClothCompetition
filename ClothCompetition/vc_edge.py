@@ -244,7 +244,7 @@ class VCConnection(object):
             data['u'] = torch.zeros([1, self.args.global_size], device=self.device)
             for key in ['x', 'edge_index', 'edge_attr']:
                 data[key] = data[key].to(self.device)
-            pred_mesh_edge_logits = self.model(data)['mesh_edge']  
+            pred_mesh_edge_logits = self.model(data)['mesh_edge']
 
         pred_mesh_edge_logits = pred_mesh_edge_logits.cpu().numpy()
         pred_mesh_edge = pred_mesh_edge_logits > 0

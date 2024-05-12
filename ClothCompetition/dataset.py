@@ -12,6 +12,8 @@ from ClothCompetition.utils.utils import downsample, load_data, load_data_list, 
 from ClothCompetition.utils.camera_utils import get_observable_particle_index, get_observable_particle_index_old, get_world_coords, get_observable_particle_index_3
 from ClothCompetition.utils.data_utils import PrivilData
 from softgym.utils.visualization import save_numpy_as_gif
+from sklearn.neighbors import NearestNeighbors
+import matplotlib.pyplot as plt
 
 class ClothDataset(Dataset):
     def __init__(self, args, input_types, phase, env):
@@ -138,7 +140,7 @@ class ClothDataset(Dataset):
             self.env.action_tool.set_picker_pos(self.env.get_current_config()['picker_pose'])
 
             # random select a particle to pick for right robot
-            picker_pose, picked_particle_idx = self._random_select_observable_particle_pos(num_candidates=3, condition="random",
+            picker_pose, picked_particle_idx = self._random_select_observable_particle_pos(num_candidates=3, condition="bias",
                                                                                 offset_direction=[1.0, 0, 0.])
             picked_particles = self.env.get_current_config()['picked_particles']
             picked_particles[0] = picked_particle_idx
@@ -385,7 +387,7 @@ class ClothDataset(Dataset):
         # self._set_picker_state(1 if enable_pick_right else 0, left=False)
         return action
 
-    def _random_select_observable_particle_pos(self, num_candidates=3, condition:str = "lowest", offset_direction=[0., 1.0, 0.]):
+    def _random_select_observable_particle_pos(self, num_candidates=3, condition:str = "bias", offset_direction=[0., 1.0, 0.]):
         '''Randomly select observable pickles based on the condition
 
         Args:
@@ -393,7 +395,7 @@ class ClothDataset(Dataset):
             condition (str): Condition to select the pickles, available options are "lowest", "highest", and "random"
             offset_direction (np.array): Offset direction for the picker to pick the particle
         '''
-        assert condition in ["lowest", "highest", "random"], "Invalid condition"
+        assert condition in ["lowest", "highest", "random", 'bias'], "Invalid condition"
 
         # Get observable particle indices
         curr_data = self.get_curr_env_data(init=True)
@@ -407,13 +409,85 @@ class ClothDataset(Dataset):
                 candidates = observable_idx[np.argpartition(observable_heights, -num_candidates)[-num_candidates:]]
             # Randomly select one candidate
             rand_choise = np.random.choice(candidates)
+        elif condition == "bias":
+            particle_positions = curr_data['positions'][observable_idx]
+            idx = self.sample_grasp_posi(particle_positions)
+            rand_choise = observable_idx[idx]
         else:
             # Just randomly select from all observable indices
             rand_choise = np.random.choice(observable_idx)
         
         picker_offset = self.env.picker_radius + self.env.cloth_particle_radius
         return curr_data['positions'][rand_choise] + np.array(offset_direction) * picker_offset, rand_choise
-    
+
+    def sample_grasp_posi(self, pc):
+        z_offset = 0.3
+        # sr_Y_min, sr_Y_max = self.Y_range
+        # set region of interest (roi)
+        x = pc[:, 0]
+        z = pc[:, 1]
+        y = pc[:, 2]
+        sr_Y_min, sr_Y_max =  np.min(y), np.max(y)
+        z_min, z_max = np.min(z), np.max(z)
+        z_max = z_max - z_offset # manually set max height for grasping
+        if z_min >= z_max:
+            z_max = z_min + 0.1
+        z_interval = z_max - z_min
+
+        pool_part = np.array([1,2,3,4]) # 1 bottom part, 4 upper part
+        # set random seed according to the current time
+        np.random.seed(int(time.time()))
+        target_part = np.random.choice(pool_part, 1, p=[0.4, 0.3, 0.2, 0.1])[0]
+        # determine the region of target part
+        z_roi_min = z_min + z_interval * (target_part - 1) / 4
+        z_roi_max = z_min + z_interval * target_part / 4
+        # print(f'z_roi: [{z_roi_min, z_roi_max}]')
+
+        # sample a point with z in [z_roi_min, z_roi_max]
+        # idx_arr = np.where((z >= z_roi_min) & (z <= z_roi_max))[0]
+
+        # sample a point with z in [z_roi_min, z_roi_max] and y in [sr_Y_min, sr_Y_max]
+        idx_arr = np.where((z >= z_roi_min) & (z <= z_roi_max) & (y >= sr_Y_min) & (y <= sr_Y_max))[0]
+        if idx_arr is not None:
+
+            point_candidates = pc[idx_arr]
+            nbrs = NearestNeighbors(n_neighbors=4, algorithm='auto').fit(point_candidates)
+            distances, indices = nbrs.kneighbors(point_candidates)
+
+            local_maxima = []
+
+            _idx_arr = []
+            for i in range(point_candidates.shape[0]):
+                x_center = point_candidates[i, 0]
+                neighbor_indices = indices[i, 1:]
+                all_neighbors = point_candidates[neighbor_indices]
+
+                if np.all(x_center > all_neighbors[:, 0]):
+                    local_maxima.append(point_candidates[i])
+                    _idx_arr.append(idx_arr[i])
+
+            _idx_arr = np.array(_idx_arr)
+            local_maxima = np.array(local_maxima)
+
+            if len(_idx_arr) > 0:
+                idx = np.random.choice(_idx_arr)
+                grasp_position = pc[idx]
+            else:
+                # sample a point from local_maxima
+                idx = np.random.choice(idx_arr)
+                grasp_position = pc[idx]
+        else:
+            idx = np.random.choice(np.arange(len(pc)))
+            grasp_position = pc[idx]
+
+        # middle_line_xy = np.array([0,0])
+        # grasp_point_xy = grasp_position[[0,2]]
+        # # calculate the angle between the grasp position and the middle line
+        # z_angle = np.arctan2(grasp_point_xy[0] - middle_line_xy[0],grasp_point_xy[1] - middle_line_xy[1])
+        #
+        # self.plot_pc(pc, grasp_position, z_angle)
+
+        return idx
     def _wait_until_stable(self, max_wait_step=100, stable_vel_threshold=1e-3):
         '''Wait until the cloth is stable
 
@@ -1020,3 +1094,39 @@ class ClothDataset(Dataset):
             return self.cumulative_lengths[traj_id-1]
         else:
             return 0
+
+    def plot_pc(self, pc, grasp_position, z_angle):
+        point_cloud = pc
+        # First, convert your point cloud to a numpy array for easier manipulation
+        point_cloud_np = np.array(point_cloud)
+
+        # Split your NumPy array into positions (x, y, z) and colors (r, g, b)
+        positions = point_cloud_np[:, :3]
+
+        # Create a new matplotlib figure and axis.
+        fig = plt.figure()
+        # window size to be square
+        fig.set_size_inches(10, 10)
+        ax = fig.add_subplot(111, projection='3d')
+
+        # Scatter plot using the x, y, and z coordinates and the color information
+        ax.scatter(positions[:, 0], positions[:, 1], positions[:, 2], c=[0, 0, 1], s=1)  # s is the size of the points
+
+        # highlight the grasp position with idx
+        ax.scatter(grasp_position[0], grasp_position[1], grasp_position[2], c=[1, 0, 0], s=3)
+        # plot a arrow from the grasp point with angle
+        ax.quiver(grasp_position[0], grasp_position[1], grasp_position[2], 0.1 * np.cos(z_angle), 0.1 * np.sin(z_angle), 0,
+                  color='red')
+
+        # ax.set_xlim3d(-0, 1.0)
+        # ax.set_ylim3d(-0.5, 0.5)
+        # ax.set_zlim3d(-0, 1.0)
+
+        # Set labels for axes
+        ax.set_xlabel('X Label')
+        ax.set_ylabel('Y Label')
+        ax.set_zlabel('Z Label')
+
+        # Show the plot
+        plt.show()
+

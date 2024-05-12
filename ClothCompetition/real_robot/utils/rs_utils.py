@@ -189,8 +189,10 @@ def segment_cloth(image):
     sam.to(device=device)
     predictor = SamPredictor(sam)
     predictor.set_image(image)
-    input_point = np.array([[345, 226]])
-    input_label = np.array([1])
+    # input_point = np.array([[345, 226]])
+    # input_label = np.array([1])
+    input_point = np.array([[345, 226], [345, 62]])
+    input_label = np.array([1, 1])
     mask, _, _ = predictor.predict(
         point_coords=input_point,
         point_labels=input_label,

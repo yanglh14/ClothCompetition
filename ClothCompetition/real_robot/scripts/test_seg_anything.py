@@ -37,7 +37,7 @@ current_dir = os.path.dirname(__file__)
 cloth_comp_dir = os.path.dirname(os.path.dirname(current_dir))
 path_to_checkpoint = os.path.join(cloth_comp_dir, "pth", "sam_vit_h_4b8939.pth") # "/home/alan/BionicDL/ClothCompetition/ClothCompetition/pth/sam_vit_h_4b8939.pth"
 model_type = "vit_h"
-dir_image = os.path.join(cloth_comp_dir, "real_robot", "log", "rgb_comp.png") # "/home/alan/BionicDL/ClothCompetition/ClothCompetition/real_robot/log/rgb_comp.png"
+dir_image = os.path.join(cloth_comp_dir, "real_robot", "log", "mask_comp_failure.png") # "/home/yang/Projects/ClothCompetition/ClothCompetition/real_robot/log/mask_comp_failure.png"
 
 ## load image
 image = cv2.imread(dir_image)
@@ -55,8 +55,10 @@ predictor = SamPredictor(sam)
 predictor.set_image(image)
 
 ## find a specific object with ONE point
-input_point = np.array([[345, 226]])
-input_label = np.array([1])
+# input_point = np.array([[345, 226]])
+# input_label = np.array([1])
+input_point = np.array([[345, 226], [345, 62]])
+input_label = np.array([1, 1])
 masks, scores, logits = predictor.predict(
     point_coords=input_point,
     point_labels=input_label,
