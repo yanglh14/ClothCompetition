@@ -74,9 +74,8 @@ class ClothDataset(Dataset):
         self.all_trajs = []
         self.input_types = input_types
 
-        self.data_names = ['positions', 'velocities',  # Position and velocity of each simulation particle, N x 3 float
+        self.data_names = ['positions',  # Position and velocity of each simulation particle, N x 3 float
                            'picker_position',  # Position of all pickers
-                           'action',  # i.e. delta movement of the picked point for each picker
                            'scene_params',  # [cloth_particle_radius, xdim, ydim, config_id]
                            'downsample_idx',  # Indexes of the down-sampled particles
                            'downsample_observable_idx',
@@ -170,7 +169,7 @@ class ClothDataset(Dataset):
             # Plan the trajectory for both pickers moving to pre stretch position
             # they plan a small trajectory based on joint velocity and acceleration limit
             # (this means they do not move to goal at a constant speed in reality)
-            pre_stretch_velocity = 0.2
+            pre_stretch_velocity = 1.0
             _, num_steps_left = self._plan_linear_picker_motion(goal_left_pre_stretch_pos, pre_stretch_velocity,
                                                                 left=True)
             _, num_steps_right = self._plan_linear_picker_motion(goal_right_pre_stretch_pos, pre_stretch_velocity,
@@ -187,7 +186,7 @@ class ClothDataset(Dataset):
             # Plan the stretching trajectory
             # we will stretch the cloth to 110% of the grasping distance
             stretch_distance = stretched_distance - pre_stretch_distance
-            stretch_vel = 0.2
+            stretch_vel = 1.0
             stretch_delta_action_right = np.array([0.0, 0.0, -stretch_vel * self.dt])
             stretch_delta_action_left = np.array([0.0, 0.0, stretch_vel * self.dt])
             stretch_steps = int(stretch_distance / (stretch_vel * self.dt))
@@ -224,17 +223,19 @@ class ClothDataset(Dataset):
                                                           enable_pick_right=True)
 
                 self.env.step(action, picked_particles=picked_particles)
-                curr_data = self.get_curr_env_data()
+                if j == 1 or j==max_time_steps:
 
-                prev_data['velocities'] = (curr_data['positions'] - prev_data['positions']) / self.dt
-                prev_data['action'] = action
-                prev_data['picked_particles'] = picked_particles
-                if j == 1:
+                    curr_data = self.get_curr_env_data()
+
+                    prev_data['picked_particles'] = picked_particles
                     # store_h5_data(self.data_names, prev_data, os.path.join(rollout_dir, 'start.h5'))
-                    store_h5_data(self.data_names, prev_data, os.path.join(rollout_dir, str(j - 1) + '.h5'))
+                    if j ==1:
+                        store_h5_data(self.data_names, prev_data, os.path.join(rollout_dir, str(0) + '.h5'))
+                    else:
+                        store_h5_data(self.data_names, prev_data, os.path.join(rollout_dir, str(1) + '.h5'))
 
                 # data_list.append(prev_data)
-                prev_data = curr_data
+                    prev_data = curr_data
                 if self.args.gen_gif:
                     frames_rgb.append(prev_data['rgb'])
                     frames_depth.append(prev_data['depth'])
@@ -252,9 +253,9 @@ class ClothDataset(Dataset):
                 save_numpy_as_gif(np.array(frames_depth) * 255., os.path.join(rollout_dir, 'depth.gif'))
 
             # the last step has no action, and is not used in training
-            prev_data['action'], prev_data['velocities'] = 0, 0
-            prev_data['picked_particles'] = picked_particles
-            store_h5_data(self.data_names, prev_data, os.path.join(rollout_dir, str(j - 1) + '.h5'))
+            # prev_data['action'], prev_data['velocities'] = 0, 0
+            # prev_data['picked_particles'] = picked_particles
+            # store_h5_data(self.data_names, prev_data, os.path.join(rollout_dir, str(1) + '.h5'))
             print("Time elasped: ", round(time.time() - time_start, 1))
             rollout_idx += 1
 
@@ -642,7 +643,8 @@ class ClothDataset(Dataset):
                 node_one_hot[picked, 1] = 1
         distance_to_ground = torch.from_numpy(vox_pc[:, 1]).view((-1, 1))
         node_one_hot = torch.from_numpy(node_one_hot)
-        node_attr = torch.from_numpy(vox_pc)
+        normalized_vox_pc = vox_pc - np.mean(vox_pc, axis=0)
+        node_attr = torch.from_numpy(normalized_vox_pc)
         node_attr = torch.cat([node_attr, distance_to_ground, node_one_hot], dim=1)
         return node_attr
 

@@ -4,7 +4,7 @@ from scipy import spatial
 from torch_geometric.data import Data
 
 from ClothCompetition.utils.camera_utils import get_observable_particle_index_3
-from ClothCompetition.dataset import ClothDataset
+from ClothCompetition.dataset_e2e import ClothDataset
 from ClothCompetition.utils.utils import load_data, voxelize_pointcloud
 
 
@@ -18,43 +18,16 @@ class ClothDatasetPointCloudEdge(ClothDataset):
         return Data.from_dict(d)
 
     def _prepare_transition(self, idx, eval=False):
-        pred_time_interval = self.args.pred_time_interval
-        success = False
-        next = 1 if not eval else self.args.time_step - self.args.n_his
 
-        while not success:
-            idx_rollout = (idx // (self.args.time_step - self.args.n_his)) % self.n_rollout
-            idx_timestep = (self.args.n_his - pred_time_interval) + idx % (self.args.time_step - self.args.n_his)
-            idx_timestep = max(idx_timestep, 0)
+        idx_rollout = idx
+        idx_timestep = 0
 
-            data = load_data(self.data_dir, idx_rollout, idx_timestep, self.data_names)
-            pointcloud = data['pointcloud'].astype(np.float32)
-            if len(pointcloud.shape) != 2:
-                print('dataset_edge.py, errorneous data. What is going on?')
-                import pdb
-                pdb.set_trace()
+        data = load_data(self.data_dir, idx_rollout, idx_timestep, self.data_names)
+        pointcloud = data['pointcloud'].astype(np.float32)
 
-                idx += next
-                continue
+        vox_pc = voxelize_pointcloud(pointcloud, self.args.voxel_size)
 
-            if len(pointcloud) < 100:  # TODO Filter these during dataset generation
-                print('dataset_edge.py, fix this')
-                import pdb
-                pdb.set_trace()
-                idx += next
-                continue
-
-            vox_pc = voxelize_pointcloud(pointcloud, self.args.voxel_size)
-
-            partial_particle_pos = data['positions'][data['downsample_idx']][data['downsample_observable_idx']]
-            if len(vox_pc) <= len(partial_particle_pos):
-                success = True
-
-            # NOTE: what is this for?
-            if eval and not success:
-                return None
-
-            idx += next
+        partial_particle_pos = data['positions'][data['downsample_idx']][data['downsample_observable_idx']]
 
         pointcloud, partial_pc_mapped_idx = get_observable_particle_index_3(vox_pc, partial_particle_pos, threshold=self.args.voxel_size)
         normalized_vox_pc = vox_pc - np.mean(vox_pc, axis=0)

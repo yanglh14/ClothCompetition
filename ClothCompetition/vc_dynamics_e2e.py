@@ -128,6 +128,7 @@ class VCDynamics(object):
                             # iter_info.add_item('accel_loss', self.mse_loss(pred['accel'], inputs['gt_accel']))
                             # iter_info.add_item('sqrt_accel_loss', torch.sqrt(iter_info['accel_loss']))
                             iter_info.add_item('reward_loss', self.mse_loss(pred['reward_end'], inputs['gt_reward_end']))
+                            iter_info.add_item('sqrt_reward_loss', torch.sqrt(iter_info['reward_loss']))
 
                             if self.train_mode != 'vsbl':
                                 iter_info.add_item('reward_loss',
