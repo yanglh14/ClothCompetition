@@ -50,6 +50,8 @@ def voxelize_pointcloud(pointcloud, voxel_size):
 
 
 from softgym.utils.misc import vectorized_range, vectorized_meshgrid
+from scipy.spatial import ConvexHull
+import matplotlib.pyplot as plt
 
 
 def pc_reward_model(pos, cloth_particle_radius=0.00625, downsample_scale=3, axis='x'):
@@ -61,32 +63,53 @@ def pc_reward_model(pos, cloth_particle_radius=0.00625, downsample_scale=3, axis
         axis_y = 2
     else:
         raise NotImplementedError
-    cloth_particle_radius *= downsample_scale
     pos = np.reshape(pos, [-1, 3])
-    min_x = np.min(pos[:, axis_x])
-    min_y = np.min(pos[:, axis_y])
-    max_x = np.max(pos[:, axis_x])
-    max_y = np.max(pos[:, axis_y])
-    init = np.array([min_x, min_y])
-    span = np.array([max_x - min_x, max_y - min_y]) / 100.
-    pos2d = pos[:, [axis_x, axis_y]]
+    pos = pos[:,[axis_x, axis_y]]
+    hull = ConvexHull(pos)
 
-    offset = pos2d - init
-    slotted_x_low = np.maximum(np.round((offset[:, 0] - cloth_particle_radius) / span[0]).astype(int), 0)
-    slotted_x_high = np.minimum(np.round((offset[:, 0] + cloth_particle_radius) / span[0]).astype(int), 100)
-    slotted_y_low = np.maximum(np.round((offset[:, 1] - cloth_particle_radius) / span[1]).astype(int), 0)
-    slotted_y_high = np.minimum(np.round((offset[:, 1] + cloth_particle_radius) / span[1]).astype(int), 100)
+    hull_area = hull.volume
 
-    grid = np.zeros(10000)  # Discretization
-    listx = vectorized_range(slotted_x_low, slotted_x_high)
-    listy = vectorized_range(slotted_y_low, slotted_y_high)
-    listxx, listyy = vectorized_meshgrid(listx, listy)
-    idx = listxx * 100 + listyy
-    idx = np.clip(idx.flatten(), 0, 9999)
-    grid[idx] = 1
+    # plt.plot(pos[:, 0], pos[:, 1], 'o')
+    # for simplex in hull.simplices:
+    #     plt.plot(pos[simplex, 0], pos[simplex, 1], 'k-')
+    # plt.show()
 
-    res = np.sum(grid) * span[0] * span[1]
-    return res
+    return hull_area
+# def pc_reward_model(pos, cloth_particle_radius=0.00625, downsample_scale=3, axis='x'):
+#     if axis == 'z':
+#         axis_x= 0
+#         axis_y = 2
+#     elif axis == 'x':
+#         axis_x = 1
+#         axis_y = 2
+#     else:
+#         raise NotImplementedError
+#     cloth_particle_radius *= downsample_scale
+#     pos = np.reshape(pos, [-1, 3])
+#     min_x = np.min(pos[:, axis_x])
+#     min_y = np.min(pos[:, axis_y])
+#     max_x = np.max(pos[:, axis_x])
+#     max_y = np.max(pos[:, axis_y])
+#     init = np.array([min_x, min_y])
+#     span = np.array([max_x - min_x, max_y - min_y]) / 100.
+#     pos2d = pos[:, [axis_x, axis_y]]
+#
+#     offset = pos2d - init
+#     slotted_x_low = np.maximum(np.round((offset[:, 0] - cloth_particle_radius) / span[0]).astype(int), 0)
+#     slotted_x_high = np.minimum(np.round((offset[:, 0] + cloth_particle_radius) / span[0]).astype(int), 100)
+#     slotted_y_low = np.maximum(np.round((offset[:, 1] - cloth_particle_radius) / span[1]).astype(int), 0)
+#     slotted_y_high = np.minimum(np.round((offset[:, 1] + cloth_particle_radius) / span[1]).astype(int), 100)
+#
+#     grid = np.zeros(10000)  # Discretization
+#     listx = vectorized_range(slotted_x_low, slotted_x_high)
+#     listy = vectorized_range(slotted_y_low, slotted_y_high)
+#     listxx, listyy = vectorized_meshgrid(listx, listy)
+#     idx = listxx * 100 + listyy
+#     idx = np.clip(idx.flatten(), 0, 9999)
+#     grid[idx] = 1
+#
+#     res = np.sum(grid) * span[0] * span[1]
+#     return res
 
 
 ################## IO #################################

@@ -4,7 +4,7 @@ import argparse
 
 from ClothCompetition.utils.utils import vv_to_args, set_resource
 import copy
-from ClothCompetition.vc_dynamics import VCDynamics
+from ClothCompetition.vc_dynamics_e2e import VCDynamics
 from ClothCompetition.vc_edge import VCConnection
 from chester import logger
 from ClothCompetition.utils.utils import configure_logger, configure_seed
@@ -64,7 +64,7 @@ def get_default_args():
     parser.add_argument('--beta1', type=float, default=0.9)
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--fixed_lr', type=bool, default=False, help='By default, decaying lr is used.')
-    parser.add_argument('--batch_size', type=int, default=12)
+    parser.add_argument('--batch_size', type=int, default=2)
     parser.add_argument('--cuda_idx', type=int, default=0)
     parser.add_argument('--num_workers', type=int, default=10, help='Number of workers for dataloader')
     parser.add_argument('--eval', type=int, default=0, help='Whether to just evaluating the model')
@@ -100,7 +100,7 @@ def create_env(args):
     env_args['num_variations'] = args.num_variations
 
     env_args['render'] = True
-    env_args['headless'] = False
+    env_args['headless'] = True
     env_args['render_mode'] = 'cloth' if args.gen_data else 'particle'
     env_args['camera_name'] = 'default_camera'
     env_args['camera_width'] = 360

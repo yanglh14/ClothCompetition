@@ -8,12 +8,15 @@ from torch_geometric.data import Dataset
 
 import pyflex
 
-from ClothCompetition.utils.utils import downsample, load_data, load_data_list, store_h5_data, voxelize_pointcloud, pc_reward_model
-from ClothCompetition.utils.camera_utils import get_observable_particle_index, get_observable_particle_index_old, get_world_coords, get_observable_particle_index_3
+from ClothCompetition.utils.utils import downsample, load_data, load_data_list, store_h5_data, voxelize_pointcloud, \
+    pc_reward_model
+from ClothCompetition.utils.camera_utils import get_observable_particle_index, get_observable_particle_index_old, \
+    get_world_coords, get_observable_particle_index_3
 from ClothCompetition.utils.data_utils import PrivilData
 from softgym.utils.visualization import save_numpy_as_gif
 from sklearn.neighbors import NearestNeighbors
 import matplotlib.pyplot as plt
+
 
 class ClothDataset(Dataset):
     def __init__(self, args, input_types, phase, env):
@@ -22,7 +25,7 @@ class ClothDataset(Dataset):
         self.args = args
         self.phase = phase
         self.env = env
-        self.args.num_picker =2 # number of pickers
+        self.args.num_picker = 2  # number of pickers
         if self.args.dataf is not None:
             self.data_dir = os.path.join(self.args.dataf, phase)
             os.system('mkdir -p ' + self.data_dir)
@@ -35,7 +38,7 @@ class ClothDataset(Dataset):
                 self.all_rollouts = sorted(self.all_rollouts, key=lambda x: int(x))
                 self.num_traj = len(self.all_rollouts)
 
-                rollout_lengths, self.rollout_steps = [],[]
+                rollout_lengths, self.rollout_steps = [], []
                 for rollout_num in self.all_rollouts:
                     rollout_dir = os.path.join(self.data_dir, rollout_num)
 
@@ -46,7 +49,7 @@ class ClothDataset(Dataset):
 
                 self.cumulative_lengths = np.cumsum(rollout_lengths)
             else:
-                self.cumulative_lengths=[0]
+                self.cumulative_lengths = [0]
 
         else:
             self.data_dir = None
@@ -81,7 +84,8 @@ class ClothDataset(Dataset):
                            'pointcloud',
                            'picked_particles']  # point cloud position by back-projecting the depth image
         self.vcd_edge = None
-        self.skipped =0
+        self.skipped = 0
+
     def get_curr_env_data(self, init=False):
         # Env info that does not change within one episode
         config = self.env.get_current_config()
@@ -89,12 +93,12 @@ class ClothDataset(Dataset):
         config_id = self.env.current_config_id
         scene_params = [self.env.cloth_particle_radius, cloth_xdim, cloth_ydim, config_id]
 
-        downsample_idx, downsample_x_dim, downsample_y_dim = downsample(cloth_xdim, cloth_ydim, self.args.down_sample_scale)
+        downsample_idx, downsample_x_dim, downsample_y_dim = downsample(cloth_xdim, cloth_ydim,
+                                                                        self.args.down_sample_scale)
         scene_params[1], scene_params[2] = downsample_x_dim, downsample_y_dim
 
         position = pyflex.get_positions().reshape(-1, 4)[:, :3]
         picker_position = self.env.action_tool.get_picker_pos()
-
 
         # Cloth and picker information
         # Get partially observed particle index
@@ -104,12 +108,13 @@ class ClothDataset(Dataset):
         world_coordinates = get_world_coords(rgb, depth, self.env, position)
 
         # Old way of getting observable index
-        downsample_observable_idx = get_observable_particle_index_old(world_coordinates, position[downsample_idx], rgb, depth)
+        downsample_observable_idx = get_observable_particle_index_old(world_coordinates, position[downsample_idx], rgb,
+                                                                      depth)
         # # TODO Try new way of getting observable index
         if init:
             observable_idx = get_observable_particle_index(world_coordinates, position, rgb, depth)
         else:
-            observable_idx=[]
+            observable_idx = []
         # all_idx = np.zeros(shape=(len(position)), dtype=np.int)
         # all_idx[observable_idx] = 1
         # downsample_observable_idx = np.where(all_idx[downsample_idx] > 0)[0]
@@ -140,8 +145,10 @@ class ClothDataset(Dataset):
             self.env.action_tool.set_picker_pos(self.env.get_current_config()['picker_pose'])
 
             # random select a particle to pick for right robot
-            picker_pose, picked_particle_idx = self._random_select_observable_particle_pos(num_candidates=3, condition="bias",
-                                                                                offset_direction=[1.0, 0, 0.])
+            picker_pose, picked_particle_idx = self._random_select_observable_particle_pos(num_candidates=3,
+                                                                                           condition="bias",
+                                                                                           offset_direction=[1.0, 0,
+                                                                                                             0.])
             picked_particles = self.env.get_current_config()['picked_particles']
             picked_particles[0] = picked_particle_idx
             self._set_picker_pos(picker_pose, left=False)
@@ -157,33 +164,39 @@ class ClothDataset(Dataset):
             pre_stretch_distance = 0.9 * np.linalg.norm(picker_positions[0] - picker_positions[1])
             stretched_distance = 1.0 * np.linalg.norm(picker_positions[0] - picker_positions[1])
             # Calculate the goal pre-stretch position of the pickers
-            goal_right_pre_stretch_pos = np.array([0.4, 0.9, -pre_stretch_distance/2.0])
-            goal_left_pre_stretch_pos = np.array([0.4, 0.9, pre_stretch_distance/2.0])
+            goal_right_pre_stretch_pos = np.array([0.4, 0.9, -pre_stretch_distance / 2.0])
+            goal_left_pre_stretch_pos = np.array([0.4, 0.9, pre_stretch_distance / 2.0])
 
             # Plan the trajectory for both pickers moving to pre stretch position
             # they plan a small trajectory based on joint velocity and acceleration limit
             # (this means they do not move to goal at a constant speed in reality)
             pre_stretch_velocity = 0.2
-            _, num_steps_left = self._plan_linear_picker_motion(goal_left_pre_stretch_pos, pre_stretch_velocity, left=True)
-            _, num_steps_right = self._plan_linear_picker_motion(goal_right_pre_stretch_pos, pre_stretch_velocity, left=False)
+            _, num_steps_left = self._plan_linear_picker_motion(goal_left_pre_stretch_pos, pre_stretch_velocity,
+                                                                left=True)
+            _, num_steps_right = self._plan_linear_picker_motion(goal_right_pre_stretch_pos, pre_stretch_velocity,
+                                                                 left=False)
             # Choose the longer step
             pre_stretch_steps = max(num_steps_left, num_steps_right)
-            delta_action_per_step_left_pre_stretch = self._plan_fixed_step_motion(goal_left_pre_stretch_pos, moving_steps=pre_stretch_steps, left=True)
-            delta_action_per_step_right_pre_stretch = self._plan_fixed_step_motion(goal_right_pre_stretch_pos, moving_steps=pre_stretch_steps, left=False)
+            delta_action_per_step_left_pre_stretch = self._plan_fixed_step_motion(goal_left_pre_stretch_pos,
+                                                                                  moving_steps=pre_stretch_steps,
+                                                                                  left=True)
+            delta_action_per_step_right_pre_stretch = self._plan_fixed_step_motion(goal_right_pre_stretch_pos,
+                                                                                   moving_steps=pre_stretch_steps,
+                                                                                   left=False)
 
             # Plan the stretching trajectory
             # we will stretch the cloth to 110% of the grasping distance
             stretch_distance = stretched_distance - pre_stretch_distance
             stretch_vel = 0.2
-            stretch_delta_action_right = np.array([0.0, 0.0, -stretch_vel*self.dt])
-            stretch_delta_action_left = np.array([0.0, 0.0, stretch_vel*self.dt])
+            stretch_delta_action_right = np.array([0.0, 0.0, -stretch_vel * self.dt])
+            stretch_delta_action_left = np.array([0.0, 0.0, stretch_vel * self.dt])
             stretch_steps = int(stretch_distance / (stretch_vel * self.dt))
-            
+
             # the overall steps will be the larger one of the above
-            max_time_steps = pre_stretch_steps + stretch_steps + 10 # Extra 10 steps to ensure the pickers move to the exact position
-            
+            max_time_steps = pre_stretch_steps + stretch_steps + 10  # Extra 10 steps to ensure the pickers move to the exact position
+
             # data_list = []
-            for j in range(1, max_time_steps+1): # one more step to move the picker to the exact position
+            for j in range(1, max_time_steps + 1):  # one more step to move the picker to the exact position
                 if not self._data_test(prev_data):
                     break
 
@@ -194,11 +207,12 @@ class ClothDataset(Dataset):
                     left_picker_delta_action = delta_action_per_step_left_pre_stretch
 
                     # right picker in motion
-                    right_picker_delta_action = delta_action_per_step_right_pre_stretch 
+                    right_picker_delta_action = delta_action_per_step_right_pre_stretch
                 elif j < pre_stretch_steps + 11:
                     # Extra 10 steps to ensure the pickers move to the exact position
                     left_picker_delta_action = goal_left_pre_stretch_pos - current_picker_pos[self._left_picker_index]
-                    right_picker_delta_action = goal_right_pre_stretch_pos - current_picker_pos[self._right_picker_index]
+                    right_picker_delta_action = goal_right_pre_stretch_pos - current_picker_pos[
+                        self._right_picker_index]
                 else:
                     # Stretch the cloth
                     left_picker_delta_action = stretch_delta_action_left
@@ -215,9 +229,9 @@ class ClothDataset(Dataset):
                 prev_data['velocities'] = (curr_data['positions'] - prev_data['positions']) / self.dt
                 prev_data['action'] = action
                 prev_data['picked_particles'] = picked_particles
-                # if j == 1:
+                if j == 1:
                     # store_h5_data(self.data_names, prev_data, os.path.join(rollout_dir, 'start.h5'))
-                store_h5_data(self.data_names, prev_data, os.path.join(rollout_dir, str(j - 1) + '.h5'))
+                    store_h5_data(self.data_names, prev_data, os.path.join(rollout_dir, str(j - 1) + '.h5'))
 
                 # data_list.append(prev_data)
                 prev_data = curr_data
@@ -233,24 +247,25 @@ class ClothDataset(Dataset):
             #     store_h5_data(self.data_names, data, os.path.join(rollout_dir, str(i) + '.h5'))
 
             if self.args.gen_gif:
-                save_numpy_as_gif(np.array(np.array(frames_rgb) * 255).clip(0., 255.), os.path.join(rollout_dir, 'rgb.gif'))
+                save_numpy_as_gif(np.array(np.array(frames_rgb) * 255).clip(0., 255.),
+                                  os.path.join(rollout_dir, 'rgb.gif'))
                 save_numpy_as_gif(np.array(frames_depth) * 255., os.path.join(rollout_dir, 'depth.gif'))
 
             # the last step has no action, and is not used in training
             prev_data['action'], prev_data['velocities'] = 0, 0
             prev_data['picked_particles'] = picked_particles
             store_h5_data(self.data_names, prev_data, os.path.join(rollout_dir, str(j - 1) + '.h5'))
-            print("Time elasped: ", round(time.time()-time_start, 1))
+            print("Time elasped: ", round(time.time() - time_start, 1))
             rollout_idx += 1
 
     @property
     def _left_picker_index(self):
         return 1
-    
+
     @property
     def _right_picker_index(self):
         return 0
-    
+
     def _set_picker_state(self, picking, left=False):
         '''set picker state (picking or unpicking)'''
         if left:
@@ -260,7 +275,7 @@ class ClothDataset(Dataset):
 
     def _get_picker_state(self, left=False):
         return self._picker_state[self._left_picker_index] if left else self._picker_state[self._right_picker_index]
-    
+
     def _picker_index(self, left=False):
         if left:
             return self._left_picker_index
@@ -299,7 +314,7 @@ class ClothDataset(Dataset):
         steps_to_goal = int(goal_error_distance / moving_distance_per_step)
 
         return delta_action_per_step, steps_to_goal
-    
+
     def _plan_fixed_step_motion(self, goal_position, moving_steps=50, left=False):
         '''Calculate delta action for the picker to reach the goal position with fixed steps
 
@@ -319,65 +334,9 @@ class ClothDataset(Dataset):
         delta_action_per_step = moving_distance_per_step * moving_direction
 
         return delta_action_per_step
-    
-    def _move_picker_to_goal(self, goal_position, linear_vel=0.2, enable_pick=True, left=False):
-        '''Move the picker to the goal position linearly with a constant speed
 
-        Args:
-            goal_position (np.array): 3D position of the goal
-            linear_vel (float): Linear velocity of the picker
-            left (bool): Whether the picker is the left picker (0 for right picker, 1 for left picker)
-        '''
-        delta_action_per_step, steps_to_goal = self._plan_linear_picker_motion(goal_position, linear_vel, left)
-        for _ in range(0, steps_to_goal + 1):
-            # Move the picker to the goal position linearly with a constant speed
-            action = self._compose_picker_action(delta_action_per_step, enable_pick=enable_pick, left=left)
-            self.env.step(action)
-        
-        # Set the picker to goal position to ensure the picker reached the goal position
-        self._set_picker_pos(goal_position, left)
-
-    def _move_picker(self, delta_position, enable_pick=True, moving_steps=50, left=False):
-        '''Move the picker by delta position at a constant speed
-
-        Args:
-            delta_position (np.array): 3D position of the goal
-            enable_pick (bool): Whether the picker is in picking mode
-            moving_period (int): Number of steps to move the picker
-            left (bool): Whether the picker is the left picker (0 for right picker, 1 for left picker)
-        '''
-        delta_position_per_step = delta_position / moving_steps
-        for _ in range(moving_steps):
-            # Move the picker to the goal position
-            action = self._compose_picker_action(delta_position_per_step, enable_pick=enable_pick, left=left)
-            self.env.step(action)
-
-    def _compose_picker_action(self, delta_action, enable_pick=False, left=False):
-        action = np.zeros_like(self.env.action_space.sample())
-        if left:
-            action[4:7] = delta_action
-            if enable_pick:
-                action[7] = 1
-                self._set_picker_state(1, left=True)
-            else:
-                self._set_picker_state(0, left=True)
-
-            # For another picker, keep it as it is
-            action[3] = self._get_picker_state(left=False)
-        else:
-            action[:3] = delta_action
-            if enable_pick:
-                action[3] = 1
-                self._set_picker_state(1, left=False)
-            else:
-                self._set_picker_state(0, left=False)
-
-            # For another picker, keep it as it is
-            action[7] = self._get_picker_state(left=True)
-
-        return action
-    
-    def _compose_dual_picker_action(self, delta_action_left, delta_action_right, enable_pick_left=False, enable_pick_right=False):
+    def _compose_dual_picker_action(self, delta_action_left, delta_action_right, enable_pick_left=False,
+                                    enable_pick_right=False):
         action = np.zeros_like(self.env.action_space.sample())
         # Set picker action
         action[:3] = delta_action_right
@@ -390,7 +349,8 @@ class ClothDataset(Dataset):
         # self._set_picker_state(1 if enable_pick_right else 0, left=False)
         return action
 
-    def _random_select_observable_particle_pos(self, num_candidates=3, condition:str = "bias", offset_direction=[0., 1.0, 0.]):
+    def _random_select_observable_particle_pos(self, num_candidates=3, condition: str = "bias",
+                                               offset_direction=[0., 1.0, 0.]):
         '''Randomly select observable pickles based on the condition
 
         Args:
@@ -407,7 +367,8 @@ class ClothDataset(Dataset):
         if condition == "lowest" or condition == "highest":
             observable_heights = curr_data['positions'][observable_idx, 1]
             if condition == "lowest":
-                candidates = observable_idx[np.argpartition(observable_heights, num_candidates, axis=0)[:num_candidates]]
+                candidates = observable_idx[
+                    np.argpartition(observable_heights, num_candidates, axis=0)[:num_candidates]]
             else:
                 candidates = observable_idx[np.argpartition(observable_heights, -num_candidates)[-num_candidates:]]
             # Randomly select one candidate
@@ -419,7 +380,7 @@ class ClothDataset(Dataset):
         else:
             # Just randomly select from all observable indices
             rand_choise = np.random.choice(observable_idx)
-        
+
         picker_offset = self.env.picker_radius + self.env.cloth_particle_radius
         return curr_data['positions'][rand_choise] + np.array(offset_direction) * picker_offset, rand_choise
 
@@ -430,14 +391,14 @@ class ClothDataset(Dataset):
         x = pc[:, 0]
         z = pc[:, 1]
         y = pc[:, 2]
-        sr_Y_min, sr_Y_max =  np.min(y), np.max(y)
+        sr_Y_min, sr_Y_max = np.min(y), np.max(y)
         z_min, z_max = np.min(z), np.max(z)
-        z_max = z_max - z_offset # manually set max height for grasping
+        z_max = z_max - z_offset  # manually set max height for grasping
         if z_min >= z_max:
             z_max = z_min + 0.1
         z_interval = z_max - z_min
 
-        pool_part = np.array([1,2,3,4]) # 1 bottom part, 4 upper part
+        pool_part = np.array([1, 2, 3, 4])  # 1 bottom part, 4 upper part
         # set random seed according to the current time
         np.random.seed(int(time.time()))
         target_part = np.random.choice(pool_part, 1, p=[0.4, 0.3, 0.2, 0.1])[0]
@@ -491,23 +452,6 @@ class ClothDataset(Dataset):
         # self.plot_pc(pc, grasp_position, z_angle)
 
         return idx
-    def _wait_until_stable(self, max_wait_step=100, stable_vel_threshold=1e-3):
-        '''Wait until the cloth is stable
-
-        Args:
-            max_wait_step (int): Maximum number of steps to wait
-            stable_vel_threshold (float): Velocity threshold to determine if the cloth is stable
-        '''
-        for j in range(0, max_wait_step):
-            curr_vel = pyflex.get_velocities()
-            action = np.zeros_like(self.env.action_space.sample())
-            # Keep the picker state as it is
-            action[3] = self._get_picker_state(left=False)
-            action[7] = self._get_picker_state(left=True)
-            self.env.step(action)
-            if np.alltrue(np.abs(curr_vel) < stable_vel_threshold) and j > 5:
-                break
-        print("[Warning] Cloth is not stable after {} steps".format(max_wait_step))
 
     def build_graph(self, data, input_type, robot_exp=False):
         """
@@ -524,9 +468,10 @@ class ClothDataset(Dataset):
         global_feat: fixed, not used for now
         """
 
-        vox_pc, velocity_his = data['pointcloud'], data['vel_his']
-        picked_points, picked_status = self._find_and_update_picked_point(data, robot_exp=robot_exp)  # Return index of the picked point
-        node_attr = self._compute_node_attr(vox_pc, picked_points, velocity_his)
+        vox_pc = data['pointcloud']
+        picked_points, picked_status = self._find_and_update_picked_point(data,
+                                                                          robot_exp=robot_exp)  # Return index of the picked point
+        node_attr = self._compute_node_attr(vox_pc, picked_points)
         edges, edge_attr = self._compute_edge_attr(input_type, data)
 
         return {'node_attr': node_attr,
@@ -534,32 +479,6 @@ class ClothDataset(Dataset):
                 'edge_attr': edge_attr,
                 'picked_particles': picked_points,
                 'picked_status': picked_status}
-
-    def _generate_policy_info(self):
-        # randomly select a move direction and a move distance
-        move_direction = np.random.rand(3) - 0.5
-        move_direction[1] = np.random.uniform(0, 0.5)
-        policy_info = dict()
-        policy_info['move_direction'] = move_direction / np.linalg.norm(move_direction)
-        policy_info['move_distance'] = np.random.uniform(
-            self.args.collect_data_delta_move_min,
-            self.args.collect_data_delta_move_max)
-        policy_info['move_steps'] = 60
-        policy_info['delta_move'] = policy_info['move_distance'] / policy_info['move_steps']
-        return policy_info
-
-    def _collect_policy(self, timestep, policy_info):
-        """ Policy for collecting data"""
-        if timestep <= policy_info['move_steps']:
-            delta_move = policy_info['delta_move']
-            action = np.zeros_like(self.env.action_space.sample())
-            action[3] = 1
-            action[7] = 1 # Let the left picker always hold the cloth
-            action[:3] = delta_move * policy_info['move_direction']
-        else:
-            action = np.zeros_like(self.env.action_space.sample())
-            # self.env.action_tool.set_picker_pos([100, 100, 100]) # Set picker away
-        return action
 
     def _data_test(self, data):
         """ Filter out cases where cloth is moved out of the view or when number of voxelized particles is larger than number of partial particles"""
@@ -656,7 +575,7 @@ class ClothDataset(Dataset):
                     if picked_particles[i] != -1:
                         old_pos = vox_pc[picked_particles[i]]
                         new_pos = vox_pc[picked_particles[i]] + action[i, :3]
-                        new_vel = (new_pos - old_pos) / (self.dt*self.args.pred_time_interval)
+                        new_vel = (new_pos - old_pos) / (self.dt * self.args.pred_time_interval)
 
                         tmp_vel_history = (velocity_his[picked_particles[i]][:-3]).copy()
                         velocity_his[picked_particles[i], 3:] = tmp_vel_history
@@ -674,8 +593,10 @@ class ClothDataset(Dataset):
                 if pick_flag[i]:
                     if 'picked_points_idx' in data and data['picked_points_idx'][i] != -1:
                         picked_particles[i] = data['picked_points_idx'][i]
-                    if picked_particles[i] == -1:  # No particle is currently picked and thus need to select a particle to pick
-                        dists = scipy.spatial.distance.cdist(picker_pos[i].reshape((-1, 3)), vox_pc[:, :3].reshape((-1, 3)))
+                    if picked_particles[
+                        i] == -1:  # No particle is currently picked and thus need to select a particle to pick
+                        dists = scipy.spatial.distance.cdist(picker_pos[i].reshape((-1, 3)),
+                                                             vox_pc[:, :3].reshape((-1, 3)))
                         idx_dists = np.hstack([np.arange(vox_pc.shape[0]).reshape((-1, 1)), dists.reshape((-1, 1))])
                         mask = dists.flatten() <= self.env.action_tool.picker_threshold * self.args.down_sample_scale \
                                + self.env.action_tool.picker_radius + self.env.action_tool.particle_radius
@@ -683,7 +604,8 @@ class ClothDataset(Dataset):
                         if idx_dists.shape[0] > 0:
                             pick_id, pick_dist = None, None
                             for j in range(idx_dists.shape[0]):
-                                if idx_dists[j, 0] not in picked_particles and (pick_id is None or idx_dists[j, 1] < pick_dist):
+                                if idx_dists[j, 0] not in picked_particles and (
+                                        pick_id is None or idx_dists[j, 1] < pick_dist):
                                     pick_id = idx_dists[j, 0]
                                     pick_dist = idx_dists[j, 1]
                             if pick_id is not None:  # update picked particles
@@ -709,7 +631,7 @@ class ClothDataset(Dataset):
         picked_status = (picked_velocity, picked_pos, new_picker_pos)
         return picked_particles, picked_status
 
-    def _compute_node_attr(self, vox_pc, picked_points, velocity_his):
+    def _compute_node_attr(self, vox_pc, picked_points):
         # picked particle [0, 1]
         # normal particle [1, 0]
         node_one_hot = np.zeros((len(vox_pc), 2), dtype=np.float32)
@@ -720,7 +642,7 @@ class ClothDataset(Dataset):
                 node_one_hot[picked, 1] = 1
         distance_to_ground = torch.from_numpy(vox_pc[:, 1]).view((-1, 1))
         node_one_hot = torch.from_numpy(node_one_hot)
-        node_attr = torch.from_numpy(velocity_his)
+        node_attr = torch.from_numpy(vox_pc)
         node_attr = torch.cat([node_attr, distance_to_ground, node_one_hot], dim=1)
         return node_attr
 
@@ -730,7 +652,8 @@ class ClothDataset(Dataset):
         # [1, 0] Distance based neighbor
         # [0, 1] Mesh edges
         # Calculate undirected edge list and corresponding relative edge attributes (distance vector + magnitude)
-        vox_pc, velocity_his, observable_particle_idx = data['pointcloud'], data['vel_his'], data['partial_pc_mapped_idx']
+        vox_pc, velocity_his, observable_particle_idx = data['pointcloud'], data['vel_his'], data[
+            'partial_pc_mapped_idx']
         _, cloth_xdim, cloth_ydim, _ = data['scene_params']
         rest_dist = data.get('rest_dist', None)
 
@@ -768,9 +691,11 @@ class ClothDataset(Dataset):
 
             if self.args.use_rest_distance:
                 if rest_dist is None:
-                    if data.get('idx_rollout', None) is not None:  # training case, without using an edge model to get the mesh edges
+                    if data.get('idx_rollout',
+                                None) is not None:  # training case, without using an edge model to get the mesh edges
                         idx_rollout = data['idx_rollout']
-                        positions, downsample_idx = load_data_list(self.data_dir, idx_rollout, 0, ['positions', 'downsample_idx'])
+                        positions, downsample_idx = load_data_list(self.data_dir, idx_rollout, 0,
+                                                                   ['positions', 'downsample_idx'])
                         if input_type == 'vsbl':
                             pc_pos_init = positions[downsample_idx][data['partial_pc_mapped_idx']].astype(np.float32)
                         else:
@@ -788,7 +713,8 @@ class ClothDataset(Dataset):
                     edge_attr = np.concatenate([edge_attr, np.zeros((edge_attr.shape[0], 1), dtype=np.float32)], axis=1)
 
             # concatenate all edge attributes
-            edge_attr = np.concatenate([edge_attr, mesh_edge_attr], axis=0) if num_distance_edges > 0 else mesh_edge_attr
+            edge_attr = np.concatenate([edge_attr, mesh_edge_attr],
+                                       axis=0) if num_distance_edges > 0 else mesh_edge_attr
             edge_attr, mesh_edges = torch.from_numpy(edge_attr), torch.from_numpy(mesh_edges)
 
             # Concatenate edge types
@@ -864,24 +790,6 @@ class ClothDataset(Dataset):
         else:
             return (pos, vel_his, pciker_positions, actions, pps, scene_params, shape_pos), new_idx
 
-    def load_rollout_data(self, idx_rollout, idx_timestep):
-        data_cur = load_data(self.data_dir, idx_rollout, idx_timestep, self.data_names)
-        data_nxt = load_data(self.data_dir, idx_rollout, idx_timestep + self.args.pred_time_interval, self.data_names)
-
-        # accumulate action if we need to predict multiple steps
-        action = data_cur['action']
-        # for t in range(1, self.args.pred_time_interval):
-        #     t_action = load_data_list(self.data_dir, idx_rollout, idx_timestep + t, ['action'])[0]
-        #     # TODO: pass it if picker drops in the middle
-        #     action[:3] += t_action[:3]
-
-        for i in range(self.args.num_picker):
-            action[i*4:i*4+3] = data_nxt['picker_position'][i,:3] - data_cur['picker_position'][i,:3]
-
-        data_cur['action'] = action
-        data_cur['gt_reward_crt'] = pc_reward_model(data_cur['positions'][data_cur['downsample_idx']])
-        return data_cur
-
     def prepare_transition(self, idx, eval=False):
         """
         Return the raw input for both full and partial point cloud.
@@ -898,45 +806,42 @@ class ClothDataset(Dataset):
         """
         pred_time_interval = self.args.pred_time_interval
         while True:
-            idx_rollout = next(i for i, total in enumerate(self.cumulative_lengths) if total > idx)
+            idx_rollout = idx
             if idx_rollout > 0:
-                idx_timestep = idx - self.cumulative_lengths[idx_rollout - 1]
+                idx_end = self.cumulative_lengths[idx_rollout] - self.cumulative_lengths[idx_rollout - 1] + pred_time_interval
             else:
-                idx_timestep = idx
+                idx_end = self.cumulative_lengths[idx_rollout] + pred_time_interval
+
+            idx_timestep = 0
 
             # idx_rollout = (idx // (self.args.time_step - self.args.n_his)) % self.n_rollout
             # idx_timestep = max((self.args.n_his - pred_time_interval) + idx % (self.args.time_step - self.args.n_his), 0)
 
             data_cur = load_data(self.data_dir, idx_rollout, idx_timestep, self.data_names)
             data_nxt = load_data(self.data_dir, idx_rollout, idx_timestep + pred_time_interval, self.data_names)
+            data_end = load_data(self.data_dir, idx_rollout, idx_end-1, self.data_names)
 
             pointcloud = data_cur['pointcloud']
 
             vox_pc = voxelize_pointcloud(pointcloud, self.args.voxel_size)
-            partial_particle_pos = data_cur['positions'][data_cur['downsample_idx']][data_cur['downsample_observable_idx']]
+            partial_particle_pos = data_cur['positions'][data_cur['downsample_idx']][
+                data_cur['downsample_observable_idx']]
             if len(vox_pc) <= len(partial_particle_pos):
                 break
             else:
                 break
                 idx += 1 if not eval else self.args.time_step - self.args.n_his
                 self.skipped += 1
-                print('Skip idx_rollout: {}, idx_timestep: {}, vox_pc len:{}, partical pos:{}, skipped:{}'.format(idx_rollout, idx_timestep, len(vox_pc), len(partial_particle_pos),self.skipped))
-
-        # # accumulate action if we need to predict multiple steps
-        # action = data_cur['action']
-        # for t in range(1, pred_time_interval):
-        #     t_action = load_data_list(self.data_dir, idx_rollout, idx_timestep + t, ['action'])[0]
-        #     # TODO: pass it if picker drops in the middle
-        #     action[:3] += t_action[:3]
-
+                print('Skip idx_rollout: {}, idx_timestep: {}, vox_pc len:{}, partical pos:{}, skipped:{}'.format(
+                    idx_rollout, idx_timestep, len(vox_pc), len(partial_particle_pos), self.skipped))
 
         # accumulate action if we need to predict multiple steps
         action = np.ones(4 * self.args.num_picker)
 
         for i in range(self.args.num_picker):
-            action[i*4:i*4+3] = data_nxt['picker_position'][i,:3] - data_cur['picker_position'][i,:3]
+            action[i * 4:i * 4 + 3] = data_nxt['picker_position'][i, :3] - data_cur['picker_position'][i, :3]
 
-        #find the grapsed points
+        # find the grapsed points
         picked_paticles = data_cur['picked_particles']
         picked_positions = data_cur['positions'][picked_paticles]
         vox_pc = np.concatenate([vox_pc, picked_positions], axis=0)
@@ -944,10 +849,10 @@ class ClothDataset(Dataset):
 
         # Use clean observable point cloud for bi-partite matching
         # particle_pc_mapped_idx: For each point in pc, give the index of the closest point on the visible downsample mesh
-        vox_pc, partial_pc_mapped_idx = get_observable_particle_index_3(vox_pc, partial_particle_pos, threshold=self.args.voxel_size)
+        vox_pc, partial_pc_mapped_idx = get_observable_particle_index_3(vox_pc, partial_particle_pos,
+                                                                        threshold=self.args.voxel_size)
         partial_pc_mapped_idx = data_cur['downsample_observable_idx'][
             partial_pc_mapped_idx]  # Map index from the observable downsampled mesh to the downsampled mesh
-
 
         # distance = scipy.spatial.distance.cdist(picked_positions, vox_pc)
         # picked_points_idx = np.argmin(distance, axis=1)
@@ -965,16 +870,20 @@ class ClothDataset(Dataset):
         full_pos_list, full_vel_list = [], []
 
         # when i minus 0, it will be 0, the interval will not be pred_time_interval; 0.1 incase pred_time_interval is 0
-        time_interval = [max(1,min(i,pred_time_interval)) for i in range(idx_timestep - (self.args.n_his * (pred_time_interval)), idx_timestep + pred_time_interval*2, pred_time_interval)]
+        time_interval = [max(1, min(i, pred_time_interval)) for i in
+                         range(idx_timestep - (self.args.n_his * (pred_time_interval)),
+                               idx_timestep + pred_time_interval * 2, pred_time_interval)]
 
-        for i in range(idx_timestep - self.args.n_his * pred_time_interval, idx_timestep, pred_time_interval):  # Load history data
+        for i in range(idx_timestep - self.args.n_his * pred_time_interval, idx_timestep,
+                       pred_time_interval):  # Load history data
             t_positions = load_data_list(self.data_dir, idx_rollout, max(0, i), ['positions'])[0]  # max just in case
             full_pos_list.append(t_positions)
         full_pos_list.extend([full_pos_cur, full_pos_nxt])
 
         # Finite difference
         # for i in range(self.args.n_his + 1): full_vel_list.append((full_pos_list[i + 1] - full_pos_list[i]) / (self.args.dt * pred_time_interval))
-        for i in range(self.args.n_his + 1): full_vel_list.append((full_pos_list[i + 1] - full_pos_list[i]) / (self.args.dt * time_interval[i+1] ))
+        for i in range(self.args.n_his + 1): full_vel_list.append(
+            (full_pos_list[i + 1] - full_pos_list[i]) / (self.args.dt * time_interval[i + 1]))
 
         # Get velocity history, remove target velocity (last one)
         full_vel_his = full_vel_list[:-1]
@@ -991,7 +900,7 @@ class ClothDataset(Dataset):
 
         gt_reward_crt = torch.FloatTensor([pc_reward_model(full_pos_cur[downsample_idx])])
         gt_reward_nxt = torch.FloatTensor([pc_reward_model(full_pos_nxt[downsample_idx])])
-
+        gt_reward_end = torch.FloatTensor([pc_reward_model(data_end['positions'][downsample_idx])])
         data = {'pointcloud_vsbl': vox_pc,
                 'vel_his_vsbl': partial_vel_his,
                 'gt_accel_vsbl': partial_gt_accel,
@@ -1004,6 +913,7 @@ class ClothDataset(Dataset):
 
                 'gt_reward_crt': gt_reward_crt,
                 'gt_reward_nxt': gt_reward_nxt,
+                'gt_reward_end':gt_reward_end,
                 'idx_rollout': idx_rollout,
                 'picker_position': data_cur['picker_position'],
                 'action': action,
@@ -1060,8 +970,7 @@ class ClothDataset(Dataset):
         return new_data
 
     def __len__(self):
-        return self.cumulative_lengths[-1]
-
+        return len(self.cumulative_lengths)
     def __getitem__(self, idx):
         all_input = {}
         ori_data = self.prepare_transition(idx, eval=self.phase == 'valid')
@@ -1076,10 +985,12 @@ class ClothDataset(Dataset):
                 'edge_index' + suffix: neighbors,
                 'edge_attr' + suffix: edge_attr,
                 'gt_accel' + suffix: data['gt_accel'],
-                'gt_reward_nxt' + suffix: data['gt_reward_nxt']
+                'gt_reward_nxt' + suffix: data['gt_reward_nxt'],
+                'gt_reward_end' + suffix: data['gt_reward_end'],
             })
             if self.args.train_mode == 'graph_imit' and input_type == 'full':
-                all_input.update({'partial_pc_mapped_idx' + suffix: torch.as_tensor(data['partial_pc_mapped_idx'], dtype=torch.long)})
+                all_input.update({'partial_pc_mapped_idx' + suffix: torch.as_tensor(data['partial_pc_mapped_idx'],
+                                                                                    dtype=torch.long)})
         data = PrivilData.from_dict(all_input)
         return data
 
@@ -1093,8 +1004,8 @@ class ClothDataset(Dataset):
         if traj_id >= self.num_traj:
             raise ValueError('traj_id should be less than num_traj')
 
-        if traj_id >0:
-            return self.cumulative_lengths[traj_id-1]
+        if traj_id > 0:
+            return self.cumulative_lengths[traj_id - 1]
         else:
             return 0
 
@@ -1118,7 +1029,8 @@ class ClothDataset(Dataset):
         # highlight the grasp position with idx
         ax.scatter(grasp_position[0], grasp_position[1], grasp_position[2], c=[1, 0, 0], s=3)
         # plot a arrow from the grasp point with angle
-        ax.quiver(grasp_position[0], grasp_position[1], grasp_position[2], 0.1 * np.cos(z_angle), 0.1 * np.sin(z_angle), 0,
+        ax.quiver(grasp_position[0], grasp_position[1], grasp_position[2], 0.1 * np.cos(z_angle), 0.1 * np.sin(z_angle),
+                  0,
                   color='red')
 
         # ax.set_xlim3d(-0, 1.0)

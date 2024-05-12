@@ -257,7 +257,7 @@ class Decoder(torch.nn.Module):
 
 
 class GNN(torch.nn.Module):
-    def __init__(self, args, decoder_output_dim, name, use_reward=False):
+    def __init__(self, args, decoder_output_dim, name, use_reward=True):
         super(GNN, self).__init__()
         self.name = name
         self.args = args
@@ -270,7 +270,7 @@ class GNN(torch.nn.Module):
                                                     2 * embed_dim + args.global_size],
                                                    use_global=self.use_global, layers=args.proc_layer, global_size=args.global_size),
                                                'decoder': Decoder(output_size=decoder_output_dim)})
-        self.use_reward = use_reward
+        self.use_reward = False
         print(use_reward)
         if use_reward:
             self.dyn_models['reward_model'] = RewardModel(128, 128, 128)
@@ -296,7 +296,7 @@ class GNN(torch.nn.Module):
         else:
             out['accel'] = self.dyn_models['decoder'](n_nxt)
             if self.use_reward:
-                out['reward_nxt'] = self.dyn_models['reward_model'](n_nxt, lat_nxt, batch=data['x_batch'])
+                out['reward_end'] = self.dyn_models['reward_model'](n_nxt, lat_nxt, batch=data['x_batch'])
 
         out['n_nxt'] = n_nxt[data['partial_pc_mapped_idx']] if 'partial_pc_mapped_idx' in data else n_nxt
         out['lat_nxt'] = lat_nxt
