@@ -270,9 +270,9 @@ class GNN(torch.nn.Module):
                                                     2 * embed_dim + args.global_size],
                                                    use_global=self.use_global, layers=args.proc_layer, global_size=args.global_size),
                                                'decoder': Decoder(output_size=decoder_output_dim)})
-        self.use_reward = False
+        self.use_reward = True
         print(use_reward)
-        if use_reward:
+        if self.use_reward:
             self.dyn_models['reward_model'] = RewardModel(128, 128, 128)
 
     def forward(self, data):
