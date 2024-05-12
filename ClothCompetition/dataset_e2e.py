@@ -594,23 +594,6 @@ class ClothDataset(Dataset):
                 if pick_flag[i]:
                     if 'picked_points_idx' in data and data['picked_points_idx'][i] != -1:
                         picked_particles[i] = data['picked_points_idx'][i]
-                    if picked_particles[
-                        i] == -1:  # No particle is currently picked and thus need to select a particle to pick
-                        dists = scipy.spatial.distance.cdist(picker_pos[i].reshape((-1, 3)),
-                                                             vox_pc[:, :3].reshape((-1, 3)))
-                        idx_dists = np.hstack([np.arange(vox_pc.shape[0]).reshape((-1, 1)), dists.reshape((-1, 1))])
-                        mask = dists.flatten() <= self.env.action_tool.picker_threshold * self.args.down_sample_scale \
-                               + self.env.action_tool.picker_radius + self.env.action_tool.particle_radius
-                        idx_dists = idx_dists[mask, :].reshape((-1, 2))
-                        if idx_dists.shape[0] > 0:
-                            pick_id, pick_dist = None, None
-                            for j in range(idx_dists.shape[0]):
-                                if idx_dists[j, 0] not in picked_particles and (
-                                        pick_id is None or idx_dists[j, 1] < pick_dist):
-                                    pick_id = idx_dists[j, 0]
-                                    pick_dist = idx_dists[j, 1]
-                            if pick_id is not None:  # update picked particles
-                                picked_particles[i] = int(pick_id)
 
                     # update the position and velocity of the picked particle
                     if picked_particles[i] != -1:
@@ -809,10 +792,7 @@ class ClothDataset(Dataset):
         pred_time_interval = self.args.pred_time_interval
         while True:
             idx_rollout = idx
-            if idx_rollout > 0:
-                idx_end = self.cumulative_lengths[idx_rollout] - self.cumulative_lengths[idx_rollout - 1] + pred_time_interval
-            else:
-                idx_end = self.cumulative_lengths[idx_rollout] + pred_time_interval
+            idx_end=1
 
             idx_timestep = 0
 
@@ -820,8 +800,7 @@ class ClothDataset(Dataset):
             # idx_timestep = max((self.args.n_his - pred_time_interval) + idx % (self.args.time_step - self.args.n_his), 0)
 
             data_cur = load_data(self.data_dir, idx_rollout, idx_timestep, self.data_names)
-            data_nxt = load_data(self.data_dir, idx_rollout, idx_timestep + pred_time_interval, self.data_names)
-            data_end = load_data(self.data_dir, idx_rollout, idx_end-1, self.data_names)
+            data_end = load_data(self.data_dir, idx_rollout, idx_end, self.data_names)
 
             pointcloud = data_cur['pointcloud']
 
@@ -832,16 +811,6 @@ class ClothDataset(Dataset):
                 break
             else:
                 break
-                idx += 1 if not eval else self.args.time_step - self.args.n_his
-                self.skipped += 1
-                print('Skip idx_rollout: {}, idx_timestep: {}, vox_pc len:{}, partical pos:{}, skipped:{}'.format(
-                    idx_rollout, idx_timestep, len(vox_pc), len(partial_particle_pos), self.skipped))
-
-        # accumulate action if we need to predict multiple steps
-        action = np.ones(4 * self.args.num_picker)
-
-        for i in range(self.args.num_picker):
-            action[i * 4:i * 4 + 3] = data_nxt['picker_position'][i, :3] - data_cur['picker_position'][i, :3]
 
         # find the grapsed points
         picked_paticles = data_cur['picked_particles']
@@ -856,69 +825,23 @@ class ClothDataset(Dataset):
         partial_pc_mapped_idx = data_cur['downsample_observable_idx'][
             partial_pc_mapped_idx]  # Map index from the observable downsampled mesh to the downsampled mesh
 
-        # distance = scipy.spatial.distance.cdist(picked_positions, vox_pc)
-        # picked_points_idx = np.argmin(distance, axis=1)
-
-        # TODO Later try this new way
-        # _, partial_pc_mapped_idx = get_mapping_from_pointcloud_to_partile_nearest_neighbor(vox_pc, partial_particle_pos,
-        #                                                                                    threshold=self.args.voxel_size)
-        # velocity calculation by multi-step finite differences
-        # for n_his = n, we need n+1 velocities(including target), and n+2 position
-        # full_pos_list: [p(t-25), ... p(t-5), p(t), p(t+5)]
-        # full_vel_list: [v(t-20), ... v(t), v(t+5)], v(t) = (p(t) - p(t-5)) / (5*dt)
-        # TODO Is attaching the velocity actually useful? Feels like this has the same problem if the picker dropped in the middle
         downsample_idx = data_cur['downsample_idx']
-        full_pos_cur, full_pos_nxt = data_cur['positions'], data_nxt['positions']
-        full_pos_list, full_vel_list = [], []
+        full_pos_cur = data_cur['positions']
 
-        # when i minus 0, it will be 0, the interval will not be pred_time_interval; 0.1 incase pred_time_interval is 0
-        time_interval = [max(1, min(i, pred_time_interval)) for i in
-                         range(idx_timestep - (self.args.n_his * (pred_time_interval)),
-                               idx_timestep + pred_time_interval * 2, pred_time_interval)]
-
-        for i in range(idx_timestep - self.args.n_his * pred_time_interval, idx_timestep,
-                       pred_time_interval):  # Load history data
-            t_positions = load_data_list(self.data_dir, idx_rollout, max(0, i), ['positions'])[0]  # max just in case
-            full_pos_list.append(t_positions)
-        full_pos_list.extend([full_pos_cur, full_pos_nxt])
-
-        # Finite difference
-        # for i in range(self.args.n_his + 1): full_vel_list.append((full_pos_list[i + 1] - full_pos_list[i]) / (self.args.dt * pred_time_interval))
-        for i in range(self.args.n_his + 1): full_vel_list.append(
-            (full_pos_list[i + 1] - full_pos_list[i]) / (self.args.dt * time_interval[i + 1]))
-
-        # Get velocity history, remove target velocity (last one)
-        full_vel_his = full_vel_list[:-1]
-        partial_vel_his = [vel[downsample_idx][partial_pc_mapped_idx] for vel in full_vel_his]
-
-        partial_vel_his = np.concatenate(partial_vel_his, axis=1)
-        full_vel_his = np.concatenate(full_vel_his, axis=1)
-
-        # Compute info for full cloth, used for IL
-        full_gt_accel = torch.FloatTensor((full_vel_list[-1] - full_vel_list[-2]) / (self.args.dt * pred_time_interval))
-        partial_gt_accel = full_gt_accel[downsample_idx][partial_pc_mapped_idx]
-        full_gt_vel = torch.FloatTensor(full_vel_list[-1])
-        partial_gt_vel = full_gt_vel[downsample_idx][partial_pc_mapped_idx]
 
         gt_reward_crt = torch.FloatTensor([pc_reward_model(full_pos_cur[downsample_idx])])
-        gt_reward_nxt = torch.FloatTensor([pc_reward_model(full_pos_nxt[downsample_idx])])
         gt_reward_end = torch.FloatTensor([pc_reward_model(data_end['positions'][downsample_idx])])
         data = {'pointcloud_vsbl': vox_pc,
-                'vel_his_vsbl': partial_vel_his,
-                'gt_accel_vsbl': partial_gt_accel,
-                'gt_vel_vsbl': partial_gt_vel,
+                'vel_his_vsbl': np.zeros((len(vox_pc), 3*self.args.n_his)),
 
                 'pointcloud_full': full_pos_cur[downsample_idx],  # Full dynamics is trained on the downsampled mesh
-                'vel_his_full': full_vel_his[downsample_idx],
-                'gt_accel_full': full_gt_accel[downsample_idx],
-                'gt_vel_full': full_gt_vel[downsample_idx],
+                'vel_his_full': np.zeros((len(full_pos_cur[downsample_idx]), 3*self.args.n_his)),
 
                 'gt_reward_crt': gt_reward_crt,
-                'gt_reward_nxt': gt_reward_nxt,
                 'gt_reward_end':gt_reward_end,
                 'idx_rollout': idx_rollout,
                 'picker_position': data_cur['picker_position'],
-                'action': action,
+                'action': np.array([0,0,0,1,0,0,0,1]),
                 'scene_params': data_cur['scene_params'],
                 'partial_pc_mapped_idx': partial_pc_mapped_idx,
                 'picked_points_idx': picked_points_idx}
@@ -986,13 +909,9 @@ class ClothDataset(Dataset):
                 'x' + suffix: node_attr,
                 'edge_index' + suffix: neighbors,
                 'edge_attr' + suffix: edge_attr,
-                'gt_accel' + suffix: data['gt_accel'],
-                'gt_reward_nxt' + suffix: data['gt_reward_nxt'],
                 'gt_reward_end' + suffix: data['gt_reward_end'],
             })
-            if self.args.train_mode == 'graph_imit' and input_type == 'full':
-                all_input.update({'partial_pc_mapped_idx' + suffix: torch.as_tensor(data['partial_pc_mapped_idx'],
-                                                                                    dtype=torch.long)})
+
         data = PrivilData.from_dict(all_input)
         return data
 
