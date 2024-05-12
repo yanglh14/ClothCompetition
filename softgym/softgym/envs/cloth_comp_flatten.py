@@ -64,7 +64,7 @@ class ClothCompFlattenEnv(ClothCompEnv):
             self._set_picker_pos(picker_pose, left=False)
             self._set_picker_pos(np.array([100, 100, 100]), left=True)
             # Let the right arm pick up the heighest particle
-            self._move_picker_to_goal(goal_position=np.array([0.0,np.random.random(1) * 0.5 + 0.5, 0.0]), linear_vel=0.2, enable_pick=True,
+            self._move_picker_to_goal(goal_position=np.array([0.0,np.random.random(1)[0] * 0.5 + 0.5, 0.0]), linear_vel=0.2, enable_pick=True,
                                       left=False, picked_particles=picked_particles)
 
             # Wait for a few seconds for the cloth to be still
@@ -424,8 +424,8 @@ class ClothCompFlattenEnv(ClothCompEnv):
         fx = K[0, 0]
         fy = K[1, 1]
 
-        x = np.linspace(0, width - 1, width).astype(np.float)
-        y = np.linspace(0, height - 1, height).astype(np.float)
+        x = np.linspace(0, width - 1, width).astype(np.float32)
+        y = np.linspace(0, height - 1, height).astype(np.float32)
         u, v = np.meshgrid(x, y)
         one = np.ones((height, width, 1))
         x = (u - u0) * depth / fx

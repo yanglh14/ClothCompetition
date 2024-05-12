@@ -5,7 +5,7 @@ Reference Materials
 - Github: https://github.com/Victorlouisdg/cloth-competition
 - VCD: https://github.com/Xingyu-Lin/VCD
 
-Detailed Notes can be found in Feishu. 
+Detailed Notes can be found in Feishu.
 
 
 

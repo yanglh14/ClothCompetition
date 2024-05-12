@@ -4,7 +4,7 @@ import argparse
 
 from ClothCompetition.utils.utils import vv_to_args, set_resource
 import copy
-from ClothCompetition.vc_dynamics import VCDynamics
+from ClothCompetition.vc_dynamics_e2e import VCDynamics
 from ClothCompetition.vc_edge import VCConnection
 from chester import logger
 from ClothCompetition.utils.utils import configure_logger, configure_seed
@@ -38,17 +38,17 @@ def get_default_args():
     # Model
     parser.add_argument('--global_size', type=int, default=128, help="Number of hidden nodes for global in GNN")
     parser.add_argument('--n_his', type=int, default=5, help="Number of history step input to the dynamics")
-    parser.add_argument('--down_sample_scale', type=int, default=3, help="Downsample the simulated cloth by a scale of 3 on each dimension")
+    parser.add_argument('--down_sample_scale', type=int, default=1, help="Downsample the simulated cloth by a scale of 3 on each dimension")
     parser.add_argument('--voxel_size', type=float, default=0.0216)
     parser.add_argument('--neighbor_radius', type=float, default=0.045, help="Radius for connecting nearby edges")
-    parser.add_argument('--use_rest_distance', type=bool, default=True, help="Subtract the rest distance for the edge attribute of mesh edges")
+    parser.add_argument('--use_rest_distance', type=bool, default=False, help="Subtract the rest distance for the edge attribute of mesh edges")
     parser.add_argument('--use_mesh_edge', type=bool, default=True)
     parser.add_argument('--collect_data_delta_move_min', type=float, default=0.15)
     parser.add_argument('--collect_data_delta_move_max', type=float, default=0.4)
-    parser.add_argument('--proc_layer', type=int, default=10, help="Number of processor layers in GNN")
+    parser.add_argument('--proc_layer', type=int, default=5, help="Number of processor layers in GNN")
     parser.add_argument('--state_dim', type=int, default=18,
                         help="Dim of node feature input. Computed based on n_his: 3 x 5 + 1 dist to ground + 2 one-hot encoding of picked particle")
-    parser.add_argument('--relation_dim', type=int, default=7, help="""Dim of edge feature input: 
+    parser.add_argument('--relation_dim', type=int, default=6, help="""Dim of edge feature input: 
         3 for directional vector + 1 for directional vector magnitude + 2 for one-hot encoding of mesh or collision edge + 1 for rest distance
         """)
 
@@ -64,7 +64,7 @@ def get_default_args():
     parser.add_argument('--beta1', type=float, default=0.9)
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--fixed_lr', type=bool, default=False, help='By default, decaying lr is used.')
-    parser.add_argument('--batch_size', type=int, default=12)
+    parser.add_argument('--batch_size', type=int, default=16)
     parser.add_argument('--cuda_idx', type=int, default=0)
     parser.add_argument('--num_workers', type=int, default=10, help='Number of workers for dataloader')
     parser.add_argument('--eval', type=int, default=0, help='Whether to just evaluating the model')
@@ -100,7 +100,7 @@ def create_env(args):
     env_args['num_variations'] = args.num_variations
 
     env_args['render'] = True
-    env_args['headless'] = False
+    env_args['headless'] = True
     env_args['render_mode'] = 'cloth' if args.gen_data else 'particle'
     env_args['camera_name'] = 'default_camera'
     env_args['camera_width'] = 360

@@ -196,8 +196,7 @@ class VCConnection(object):
         args = self.args
         self.set_mode('eval')
 
-        idx = rollout_idx * (self.args.time_step - self.args.n_his) + timestep
-        data_ori = dataset._prepare_transition(idx)
+        data_ori = dataset._prepare_transition(rollout_idx)
         data = dataset.build_graph(data_ori)
 
         gt_mesh_edge = data['gt_mesh_edge'].detach().cpu().numpy()
