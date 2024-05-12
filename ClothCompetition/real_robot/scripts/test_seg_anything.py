@@ -32,11 +32,12 @@ def show_box(box, ax):
     w, h = box[2] - box[0], box[3] - box[1]
     ax.add_patch(plt.Rectangle((x0, y0), w, h, edgecolor='green', facecolor=(0, 0, 0, 0), lw=2))
 
-
-
-path_to_checkpoint = "/home/yang/Projects/ClothCompetition/ClothCompetition/pth/sam_vit_h_4b8939.pth"
+import os
+current_dir = os.path.dirname(__file__)
+cloth_comp_dir = os.path.dirname(os.path.dirname(current_dir))
+path_to_checkpoint = os.path.join(cloth_comp_dir, "pth", "sam_vit_h_4b8939.pth") # "/home/alan/BionicDL/ClothCompetition/ClothCompetition/pth/sam_vit_h_4b8939.pth"
 model_type = "vit_h"
-dir_image = "/home/yang/Projects/ClothCompetition/ClothCompetition/real_robot/log/rgb_comp.png"
+dir_image = os.path.join(cloth_comp_dir, "real_robot", "log", "rgb_comp.png") # "/home/alan/BionicDL/ClothCompetition/ClothCompetition/real_robot/log/rgb_comp.png"
 
 ## load image
 image = cv2.imread(dir_image)
