@@ -20,9 +20,9 @@ def segment_cloth(image, camera_pose_in_world, camera_intrinsics, camera_resolut
 
     image_cropped = image[image_row_start:image_row_end, image_col_start:image_col_end]
 
-    path_to_checkpoint = os.path.join(root_dir, "ClothCompetition", "pth", "sam_vit_h_4b8939.pth")
-    model_type = "vit_h"
-    device = "cpu" # "cuda" if torch.cuda.is_available() else "cpu"
+    path_to_checkpoint = os.path.join(root_dir, "ClothCompetition", "pth", "sam_vit_b_01ec64.pth")
+    model_type = "vit_b" # "vit_h"
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     sam = sam_model_registry[model_type](checkpoint=path_to_checkpoint)
     sam.to(device=device)
     predictor = SamPredictor(sam)
@@ -75,12 +75,16 @@ def segment_cloth(image, camera_pose_in_world, camera_intrinsics, camera_resolut
     cv2.waitKey()
 
     # Save image and mask
+    # current_dir = os.path.dirname(__file__)
+    # log_dir = os.path.join(current_dir, "log")
+    # current_time = int(time.time())
+    # cv2.imwrite(os.path.join(log_dir, "raw_image_{}.jpg".format(current_time)), image)
+    # cv2.imwrite(os.path.join(log_dir, "cropped_image_{}.jpg".format(current_time)), image_display)
+    # cv2.imwrite(os.path.join(log_dir, "mask_{}.jpg".format(current_time)), mask)  
+
     current_dir = os.path.dirname(__file__)
     log_dir = os.path.join(current_dir, "log")
-    current_time = int(time.time())
-    cv2.imwrite(os.path.join(log_dir, "raw_image_{}.jpg".format(current_time)), image)
-    cv2.imwrite(os.path.join(log_dir, "cropped_image_{}.jpg".format(current_time)), image_display)
-    cv2.imwrite(os.path.join(log_dir, "mask_{}.jpg".format(current_time)), mask)  
+    cv2.imwrite(os.path.join(log_dir, "mask.png"), mask)
 
     return mask
 
@@ -168,14 +172,7 @@ def voxelize_pointcloud(pointcloud, voxel_size):
 
 import matplotlib.pyplot as plt
 
-def plot_pc(pc, grasp_position, z_angle):
-    point_cloud = pc
-    # First, convert your point cloud to a numpy array for easier manipulation
-    point_cloud_np = np.array(point_cloud)
-
-    # Split your NumPy array into positions (x, y, z) and colors (r, g, b)
-    positions = point_cloud_np[:, :3]
-
+def plot_pc(pc, grasp_position, z_angle, filtered_pc, local_maxima, final_candidates):
     # Create a new matplotlib figure and axis.
     fig = plt.figure()
     # window size to be square
@@ -183,16 +180,37 @@ def plot_pc(pc, grasp_position, z_angle):
     ax = fig.add_subplot(111, projection='3d')
 
     # Scatter plot using the x, y, and z coordinates and the color information
-    ax.scatter(positions[:, 0], positions[:, 1], positions[:, 2], c=[0, 0, 1], s=1)  # s is the size of the points
+    scatter_plot = ax.scatter(pc[:, 0], pc[:, 1], pc[:, 2], c=["b"]*pc.shape[0], s=10)  # s is the size of the points
+
+    # Change the color of the points in filtered_pc to red
+    for point in filtered_pc:
+        # Search for point in pc
+        idx = np.where(np.all(pc == point, axis=1))[0][0]
+        # Change color of this point
+        scatter_plot._facecolors[idx] = [1, 0, 0, 1]
+
+    # Change the color of the points in local_maxima to green
+    for point in local_maxima:
+        # Search for point in pc
+        idx = np.where(np.all(pc == point, axis=1))[0][0]
+        # Change color of this point
+        scatter_plot._facecolors[idx] = [0, 1, 0, 1]
+
+    # Change the color of the points in final_candidates to yellow
+    for point in final_candidates:
+        # Search for point in pc
+        idx = np.where(np.all(pc == point, axis=1))[0][0]
+        # Change color of this point
+        scatter_plot._facecolors[idx] = [1, 1, 0, 1]
 
     # highlight the grasp position with idx
-    ax.scatter(grasp_position[0], grasp_position[1], grasp_position[2], c=[1, 0, 0], s=3)
+    ax.scatter(grasp_position[0], grasp_position[1], grasp_position[2], c=[1, 0, 0], s=20)
     # plot a arrow from the grasp point with angle
     ax.quiver(grasp_position[0], grasp_position[1], grasp_position[2], 0.1 * np.cos(z_angle), 0.1 * np.sin(z_angle), 0,
                 color='red')
 
-    ax.set_xlim3d(-0.5, 0.5)
-    ax.set_ylim3d(-0.5, 0.5)
+    ax.set_xlim3d(-0.2, 0.2)
+    ax.set_ylim3d(-0.2, 0.2)
     ax.set_zlim3d(-0, 1.0)
 
     # Set labels for axes
