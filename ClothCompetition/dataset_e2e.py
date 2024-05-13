@@ -237,8 +237,10 @@ class ClothDataset(Dataset):
                 # data_list.append(prev_data)
                     prev_data = curr_data
                 if self.args.gen_gif:
-                    frames_rgb.append(prev_data['rgb'])
-                    frames_depth.append(prev_data['depth'])
+                    rgbd = self.env.get_rgbd(show_picker=True)
+                    rgb, depth = rgbd[:, :, :3], rgbd[:, :, 3]
+                    frames_rgb.append(rgb)
+                    frames_depth.append(depth)
 
             if j < max_time_steps - 1 or not self._data_test(curr_data):
                 continue

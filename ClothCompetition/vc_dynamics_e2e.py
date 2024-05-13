@@ -19,8 +19,10 @@ from ClothCompetition.dataset_e2e import ClothDataset
 from ClothCompetition.utils.data_utils import AggDict
 from ClothCompetition.utils.utils import extract_numbers, pc_reward_model, visualize
 from ClothCompetition.utils.camera_utils import get_matrix_world_to_camera, project_to_image
-
-
+from ClothCompetition.utils.utils import downsample, load_data, load_data_list, store_h5_data, voxelize_pointcloud, \
+    pc_reward_model
+from ClothCompetition.utils.camera_utils import get_observable_particle_index, get_observable_particle_index_old, \
+    get_world_coords, get_observable_particle_index_3
 class VCDynamics(object):
     def __init__(self, args, env, vcd_edge=None):
         # Create Models
@@ -339,3 +341,80 @@ class VCDynamics(object):
         # update picker position, and the particles picked
         picker_pos = new_picker_pos
         return pc_pos, velocity_his, picker_pos
+
+    def infer_performance(self):
+        data_dir = './data/base_v5/valid/'
+        # load data
+        idx_rollout = 5
+        idx_timestep = 0
+        idx_end = 1
+        data_names = ['positions',  # Position and velocity of each simulation particle, N x 3 float
+                      'picker_position',  # Position of all pickers
+                      'scene_params',  # [cloth_particle_radius, xdim, ydim, config_id]
+                      'downsample_idx',  # Indexes of the down-sampled particles
+                      'downsample_observable_idx',
+                      'observable_idx',  # Indexes of the observed particles
+                      'pointcloud',
+                      'picked_particles']  # point cloud position by back-projecting the depth image
+        data_cur = load_data(data_dir, idx_rollout, idx_timestep, data_names)
+        data_end = load_data(data_dir, idx_rollout, idx_end, data_names)
+
+        pointcloud = data_cur['pointcloud']
+        vox_pc = voxelize_pointcloud(pointcloud, self.args.voxel_size)
+
+        partial_particle_pos = data_cur['positions'][data_cur['downsample_idx']][
+            data_cur['downsample_observable_idx']]
+
+        # find the grapsed points
+        picked_paticles = data_cur['picked_particles']
+        picked_positions = data_cur['positions'][picked_paticles]
+        vox_pc = np.concatenate([vox_pc, picked_positions], axis=0)
+        picked_points_idx = np.array([len(vox_pc) - 2, len(vox_pc) - 1])
+
+        # Use clean observable point cloud for bi-partite matching
+        # particle_pc_mapped_idx: For each point in pc, give the index of the closest point on the visible downsample mesh
+        vox_pc, partial_pc_mapped_idx = get_observable_particle_index_3(vox_pc, partial_particle_pos,
+                                                                        threshold=self.args.voxel_size)
+
+        partial_pc_mapped_idx = data_cur['downsample_observable_idx'][
+            partial_pc_mapped_idx]  # Map index from the observable downsampled mesh to the downsampled mesh
+
+        downsample_idx = data_cur['downsample_idx']
+        full_pos_cur = data_cur['positions']
+
+        gt_reward_crt = torch.FloatTensor([pc_reward_model(full_pos_cur[downsample_idx])])
+        gt_reward_end = torch.FloatTensor([pc_reward_model(data_end['positions'][downsample_idx])])
+
+        data = {'pointcloud': vox_pc,
+                'vel_his': np.zeros((len(vox_pc), 3*self.args.n_his)),
+
+                'gt_reward_crt': gt_reward_crt,
+                'gt_reward_end':gt_reward_end,
+                'idx_rollout': idx_rollout,
+                'picker_position': data_cur['picker_position'],
+                'action': np.array([0,0,0,1,0,0,0,1]),
+                'scene_params': data_cur['scene_params'],
+                'partial_pc_mapped_idx': partial_pc_mapped_idx,
+                'picked_points_idx': picked_points_idx}
+
+        model_input_data = dict(
+            scene_params=data_cur['scene_params'],
+            pointcloud=vox_pc,
+            cuda_idx=-1,
+        )
+        mesh_edges = self.vcd_edge.infer_mesh_edges(model_input_data)
+        data['mesh_edges'] = mesh_edges
+
+
+        graph_data = self.datasets['valid'].build_graph(data, input_type='vsbl', robot_exp=False)
+
+        inputs = {'x': graph_data['node_attr'].to(self.device),
+                  'edge_attr': graph_data['edge_attr'].to(self.device),
+                  'edge_index': graph_data['neighbors'].to(self.device),
+                  'x_batch': torch.zeros(graph_data['node_attr'].size(0), dtype=torch.long, device=self.device),
+                  'u': torch.zeros([1, self.args.global_size], device=self.device)}
+
+        # obtain model predictions
+        with torch.no_grad():
+            pred = self.models['vsbl'](inputs)
+            pred_reward = pred['reward_end'].cpu().numpy()
