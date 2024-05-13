@@ -3,18 +3,30 @@ from segment_anything import SamPredictor, sam_model_registry
 import numpy as np
 import cv2
 import torch
+import time
 
 current_dir = os.path.dirname(__file__)
 root_dir = os.path.dirname(current_dir)
 
-def segment_cloth(image, camera_pose_in_world, camera_intrinsics):
+image_size_width = 480
+image_size_length = 960
+
+def segment_cloth(image, camera_pose_in_world, camera_intrinsics, camera_resolution):
+    # Crop the image first from the center
+    image_col_start = int(camera_resolution[0] // 2 - image_size_width // 2)
+    image_col_end = image_col_start + image_size_width
+    image_row_start = int(camera_resolution[1] // 2 - image_size_length // 2)
+    image_row_end = image_row_start + image_size_length
+
+    image_cropped = image[image_row_start:image_row_end, image_col_start:image_col_end]
+
     path_to_checkpoint = os.path.join(root_dir, "ClothCompetition", "pth", "sam_vit_h_4b8939.pth")
     model_type = "vit_h"
     device = "cpu" # "cuda" if torch.cuda.is_available() else "cpu"
     sam = sam_model_registry[model_type](checkpoint=path_to_checkpoint)
     sam.to(device=device)
     predictor = SamPredictor(sam)
-    predictor.set_image(image)
+    predictor.set_image(image_cropped)
     # input_point = np.array([[345, 226]])
     # input_label = np.array([1])
 
@@ -33,6 +45,8 @@ def segment_cloth(image, camera_pose_in_world, camera_intrinsics):
     
     # Convert the pixel coordinates to integers
     input_point = image_points.squeeze().astype(np.int32)
+    # Offset the input point to the cropped image
+    input_point = input_point - np.array([image_col_start, image_row_start])
     input_label = np.array([1, 1])
     mask, _, _ = predictor.predict(
         point_coords=input_point,
@@ -43,22 +57,30 @@ def segment_cloth(image, camera_pose_in_world, camera_intrinsics):
     mask = np.where(mask > 0.5, 255, 0).astype(np.uint8)
     kernel = np.ones((3, 3), np.uint8)
     mask = mask[0]
-    mask = cv2.erode(mask, kernel, iterations=3)
+    mask = cv2.erode(mask, kernel, iterations=5)
 
-    # # Draw the points on the image
-    # image_display = image.copy()
-    # for point in input_point:
-    #     cv2.circle(image_display, tuple(point), 25, (0, 255, 0), -1)
+    # Draw the points on the image
+    image_display = image_cropped.copy()
+    for point in input_point:
+        cv2.circle(image_display, tuple(point), 25, (0, 255, 0), -1)
 
-    # # Display the selected points
-    # cv2.namedWindow("selected_points", cv2.WINDOW_NORMAL)
-    # cv2.imshow("selected_points", image_display)
-    # cv2.waitKey()
+    # Display the selected points
+    cv2.namedWindow("selected_points", cv2.WINDOW_NORMAL)
+    cv2.imshow("selected_points", image_display)
+    cv2.waitKey()
 
-    # # Display the mask
-    # cv2.namedWindow("mask", cv2.WINDOW_NORMAL)
-    # cv2.imshow("mask", mask)
-    # cv2.waitKey()
+    # Display the mask
+    cv2.namedWindow("mask", cv2.WINDOW_NORMAL)
+    cv2.imshow("mask", mask)
+    cv2.waitKey()
+
+    # Save image and mask
+    current_dir = os.path.dirname(__file__)
+    log_dir = os.path.join(current_dir, "log")
+    current_time = int(time.time())
+    cv2.imwrite(os.path.join(log_dir, "raw_image_{}.jpg".format(current_time)), image)
+    cv2.imwrite(os.path.join(log_dir, "cropped_image_{}.jpg".format(current_time)), image_display)
+    cv2.imwrite(os.path.join(log_dir, "mask_{}.jpg".format(current_time)), mask)  
 
     return mask
 
@@ -97,9 +119,26 @@ def get_pc_from_depth(depth_map,
 
     return vox_pc
 
-def filter_pc(pc, mask):
-    pc = pc[mask == 255]
+def filter_pc(pc, mask, camera_resolution):
+    # Crop the point clouds first from the center
+    image_col_start = int(camera_resolution[0] // 2 - image_size_width // 2)
+    image_col_end = image_col_start + image_size_width
+    image_row_start = int(camera_resolution[1] // 2 - image_size_length // 2)
+    image_row_end = image_row_start + image_size_length
+
+    pc_cropped = pc[image_row_start:image_row_end, image_col_start:image_col_end]
+
+    pc = pc_cropped[mask == 255]
     pc = voxelize_pointcloud(pc.astype(np.float32), voxel_size=0.0216)
+
+    # Save point cloud to a file
+    import pickle
+    current_dir = os.path.dirname(__file__)
+    log_dir = os.path.join(current_dir, "log")
+    current_time = int(time.time())
+    file_name = os.path.join(log_dir, "pc_{}".format(current_time))
+    np.save(file_name, pc)
+
     return pc
 
 def transform_point_cloud(point_cloud,

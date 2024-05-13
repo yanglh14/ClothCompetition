@@ -1,0 +1,12 @@
+{
+    "position_in_meters": {
+        "x": 0.12004800885915756,
+        "y": 0.0,
+        "z": 0.0
+    },
+    "rotation_euler_xyz_in_radians": {
+        "roll": 0.0,
+        "pitch": 0.0,
+        "yaw": 0.0
+    }
+}
