@@ -8,16 +8,17 @@ from sklearn.neighbors import NearestNeighbors
 
 def sample_grasp(camera_pose_in_world,
                  camera_intrinsics,
+                 camera_resolution,
                  image_rgb,
                  point_cloud):
     '''Give the observations required, return the grasp pose'''
     # Segment the cloth first
-    mask = segment_cloth(image_rgb, camera_pose_in_world, camera_intrinsics)
+    mask = segment_cloth(image_rgb, camera_pose_in_world, camera_intrinsics, camera_resolution)
     cv2.imwrite('../log/mask_comp.png', mask)
     print("Masking finished")
 
     # Get the point cloud
-    pc = filter_pc(point_cloud, mask)
+    pc = filter_pc(point_cloud, mask, camera_resolution)
     
     z_offset = 0.3
     # sr_Y_min, sr_Y_max = self.Y_range
@@ -59,7 +60,7 @@ def sample_grasp(camera_pose_in_world,
             neighbor_indices = indices[i, 1:]  # 排除自身
             all_neighbors = point_candidates[neighbor_indices]
 
-            if np.all(x_center > all_neighbors[:, 0]):
+            if np.all(x_center < all_neighbors[:, 0]):
                 local_maxima.append(point_candidates[i])
 
         local_maxima = np.array(local_maxima)
@@ -80,7 +81,14 @@ def sample_grasp(camera_pose_in_world,
     z_angle = np.arctan2(grasp_point_xy[1] - middle_line_xy[1], grasp_point_xy[0] - middle_line_xy[0])
 
     plot_pc(pc, grasp_position, z_angle)
-
-    pass
     
-    # Calculate the grasp pose from grasp position and z_angle
+    # Calculate the transformation matrix
+    rotation_matrix = np.array([[-np.sin(z_angle), 0.0, -np.cos(z_angle)],
+                                [np.cos(z_angle), 0.0, -np.sin(z_angle)],
+                                [0.0, -1.0, 0.0 ]])
+    
+    transform_matrix = np.identity(4)
+    transform_matrix[:3, :3] = rotation_matrix
+    transform_matrix[:3, 3] = grasp_position
+
+    return transform_matrix
