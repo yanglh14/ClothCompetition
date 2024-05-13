@@ -221,7 +221,10 @@ class VCConnection(object):
             pointcloud
             cuda_idx
         """
-        scene_params = args['scene_params']
+        if 'scene_params' in args.keys():
+            scene_params = args['scene_params']
+        else:
+            scene_params= [0,0,0,0]
         point_cloud = args['pointcloud']
         cuda_idx = args.get('cuda_idx', 0)
 

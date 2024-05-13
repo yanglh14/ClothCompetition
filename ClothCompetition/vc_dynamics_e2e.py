@@ -384,23 +384,20 @@ class VCDynamics(object):
 
         gt_reward_crt = torch.FloatTensor([pc_reward_model(full_pos_cur[downsample_idx])])
         gt_reward_end = torch.FloatTensor([pc_reward_model(data_end['positions'][downsample_idx])])
+        normalized_vox_pc = vox_pc - np.mean(vox_pc, axis=0)
 
-        data = {'pointcloud': vox_pc,
-                'vel_his': np.zeros((len(vox_pc), 3*self.args.n_his)),
-
-                'gt_reward_crt': gt_reward_crt,
-                'gt_reward_end':gt_reward_end,
-                'idx_rollout': idx_rollout,
-                'picker_position': data_cur['picker_position'],
+        data = {'pointcloud': normalized_vox_pc,
+                'vel_his': np.zeros((len(vox_pc), 15)),
+                'picker_position': np.zeros([2,3]),
                 'action': np.array([0,0,0,1,0,0,0,1]),
-                'scene_params': data_cur['scene_params'],
-                'partial_pc_mapped_idx': partial_pc_mapped_idx,
-                'picked_points_idx': picked_points_idx}
+                'picked_points_idx': picked_points_idx,
+                'partial_pc_mapped_idx': np.arange(len(vox_pc)),
+                }
+
 
         model_input_data = dict(
-            scene_params=data_cur['scene_params'],
             pointcloud=vox_pc,
-            cuda_idx=-1,
+            cuda_idx=0,
         )
         mesh_edges = self.vcd_edge.infer_mesh_edges(model_input_data)
         data['mesh_edges'] = mesh_edges
