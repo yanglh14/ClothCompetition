@@ -227,15 +227,13 @@ class ClothDataset(Dataset):
 
                     curr_data = self.get_curr_env_data()
 
-                    prev_data['picked_particles'] = picked_particles
+                    curr_data['picked_particles'] = picked_particles
                     # store_h5_data(self.data_names, prev_data, os.path.join(rollout_dir, 'start.h5'))
                     if j ==1:
-                        store_h5_data(self.data_names, prev_data, os.path.join(rollout_dir, str(0) + '.h5'))
+                        store_h5_data(self.data_names, curr_data, os.path.join(rollout_dir, str(0) + '.h5'))
                     else:
-                        store_h5_data(self.data_names, prev_data, os.path.join(rollout_dir, str(1) + '.h5'))
+                        store_h5_data(self.data_names, curr_data, os.path.join(rollout_dir, str(1) + '.h5'))
 
-                # data_list.append(prev_data)
-                    prev_data = curr_data
                 if self.args.gen_gif:
                     rgbd = self.env.get_rgbd(show_picker=True)
                     rgb, depth = rgbd[:, :, :3], rgbd[:, :, 3]
@@ -255,7 +253,7 @@ class ClothDataset(Dataset):
                 save_numpy_as_gif(np.array(frames_depth) * 255., os.path.join(rollout_dir, 'depth.gif'))
 
             # the last step has no action, and is not used in training
-            # prev_data['action'], prev_data['velocities'] = 0, 0
+            # prev_data['action'], prev_data['velocities'] = 0, 0distance
             # prev_data['picked_particles'] = picked_particles
             # store_h5_data(self.data_names, prev_data, os.path.join(rollout_dir, str(1) + '.h5'))
             print("Time elasped: ", round(time.time() - time_start, 1))

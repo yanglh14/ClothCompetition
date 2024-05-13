@@ -343,9 +343,9 @@ class VCDynamics(object):
         return pc_pos, velocity_his, picker_pos
 
     def infer_performance(self):
-        data_dir = './data/base_v5/valid/'
+        data_dir = './data/base_v5/train/'
         # load data
-        idx_rollout = 5
+        idx_rollout = 0
         idx_timestep = 0
         idx_end = 1
         data_names = ['positions',  # Position and velocity of each simulation particle, N x 3 float
