@@ -16,7 +16,7 @@ import numpy as np
 
 current_dir = os.path.dirname(__file__)
 
-in_competition = True
+in_competition = False
 
 if __name__ == "__main__":
     if in_competition:
