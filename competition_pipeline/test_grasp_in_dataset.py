@@ -13,6 +13,8 @@ from cloth_tools.dataset.bookkeeping import datetime_for_filename
 from pathlib import Path
 import json
 import numpy as np
+# from ClothCompetition.main_plan_e2e import Planner
+from competition_pipeline.utils import init_segmentation
 
 current_dir = os.path.dirname(__file__)
 
@@ -20,6 +22,10 @@ dataset_name = "cloth_competition_dataset_0000"
 random_sample = False
 
 if __name__ == "__main__":
+    # Initialize predictor
+    init_segmentation()
+
+    # planner = Planner()
     dataset_dir = os.path.join(current_dir, dataset_name)
     # Read all the directories in the dataset
     observation_dirs = [os.path.join(dataset_dir, d) for d in os.listdir(dataset_dir) if os.path.isdir(os.path.join(dataset_dir, d))]
@@ -31,7 +37,7 @@ if __name__ == "__main__":
     # Iterate through the observation directories
     for observation_dir in observation_dirs:
         observation_folder = os.path.join(observation_dir, "observation_start")
-
+        print("data_dir: ", observation_dir)    
         observation = load_competition_observation(observation_folder)
 
         # Read camera information
@@ -50,7 +56,8 @@ if __name__ == "__main__":
             camera_intrinsics=camera_intrinsics,
             camera_resolution=camera_resolution,
             image_rgb=image_rgb,
-            point_cloud=point_cloud
+            point_cloud=point_cloud,
+            planner = None,
         )
 
         # Give the pose an offset along the TCP frame z axis

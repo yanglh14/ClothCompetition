@@ -11,7 +11,22 @@ root_dir = os.path.dirname(current_dir)
 image_size_width = 480
 image_size_length = 960
 
+path_to_checkpoint = os.path.join(root_dir, "ClothCompetition", "pth", "sam_vit_l_0b3195.pth")
+model_type = "vit_l"
+device = "cpu" # "cuda" if torch.cuda.is_available() else "cpu"
+
+predictor = None
+
+def init_segmentation():
+    global predictor
+    time_start = time.time()
+    sam = sam_model_registry[model_type](checkpoint=path_to_checkpoint)
+    sam.to(device=device)
+    predictor = SamPredictor(sam)
+    print('init time cost1:', time.time()-time_start)
+
 def segment_cloth(image, camera_pose_in_world, camera_intrinsics, camera_resolution):
+    global predictor
     # Crop the image first from the center
     image_col_start = int(camera_resolution[0] // 2 - image_size_width // 2)
     image_col_end = image_col_start + image_size_width
@@ -19,16 +34,6 @@ def segment_cloth(image, camera_pose_in_world, camera_intrinsics, camera_resolut
     image_row_end = image_row_start + image_size_length
 
     image_cropped = image[image_row_start:image_row_end, image_col_start:image_col_end]
-
-    path_to_checkpoint = os.path.join(root_dir, "ClothCompetition", "pth", "sam_vit_b_01ec64.pth")
-    model_type = "vit_b"
-    device = "cuda" # "cuda" if torch.cuda.is_available() else "cpu"
-
-    time_start = time.time()
-    sam = sam_model_registry[model_type](checkpoint=path_to_checkpoint)
-    sam.to(device=device)
-    predictor = SamPredictor(sam)
-    print('init time cost:', time.time()-time_start)
 
     time_start = time.time()
     predictor.set_image(image_cropped)
