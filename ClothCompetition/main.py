@@ -45,7 +45,7 @@ def get_default_args():
     parser.add_argument('--use_mesh_edge', type=bool, default=True)
     parser.add_argument('--collect_data_delta_move_min', type=float, default=0.15)
     parser.add_argument('--collect_data_delta_move_max', type=float, default=0.4)
-    parser.add_argument('--proc_layer', type=int, default=5, help="Number of processor layers in GNN")
+    parser.add_argument('--proc_layer', type=int, default=3, help="Number of processor layers in GNN")
     parser.add_argument('--state_dim', type=int, default=18,
                         help="Dim of node feature input. Computed based on n_his: 3 x 5 + 1 dist to ground + 2 one-hot encoding of picked particle")
     parser.add_argument('--relation_dim', type=int, default=6, help="""Dim of edge feature input: 
@@ -63,7 +63,7 @@ def get_default_args():
     parser.add_argument('--n_epoch', type=int, default=1000)
     parser.add_argument('--beta1', type=float, default=0.9)
     parser.add_argument('--lr', type=float, default=1e-4)
-    parser.add_argument('--fixed_lr', type=bool, default=False, help='By default, decaying lr is used.')
+    parser.add_argument('--fixed_lr', type=bool, default=True, help='By default, decaying lr is used.')
     parser.add_argument('--batch_size', type=int, default=16)
     parser.add_argument('--cuda_idx', type=int, default=0)
     parser.add_argument('--num_workers', type=int, default=10, help='Number of workers for dataloader')

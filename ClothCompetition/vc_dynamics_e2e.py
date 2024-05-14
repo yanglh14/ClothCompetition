@@ -147,7 +147,7 @@ class VCDynamics(object):
 
                         if phase == 'train':
                             self.optims[m_name].zero_grad()
-                            iter_info['total_loss'].backward()
+                            iter_info['reward_loss'].backward()
                             self.optims[m_name].step()
 
                         epoch_infos[m_name].update_by_add(iter_infos[m_name])  # Aggregate info
