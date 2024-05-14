@@ -91,25 +91,47 @@ def sample_grasp(camera_pose_in_world,
         else:
             final_candidates = np.concatenate((final_candidates, selected_candidates), axis=0)
 
-    grasp_position = planner.inference(pc_origin, final_candidates, real_robot=True)
+    # grasp_position = planner.inference(pc_origin, final_candidates, real_robot=True)
+    # # for now, just randomly sample one from the final candidates
+    # # grasp_position = final_candidates[np.random.choice(len(final_candidates))]
+    #
+    # # find out the corresponding pc
+    # middle_line_xy = [0.0, 0.0]
+    # grasp_point_xy = grasp_position[0:2]
+    # # calculate the angle between the grasp position and the middle line
+    # z_angle = np.arctan2(grasp_point_xy[1] - middle_line_xy[1], grasp_point_xy[0] - middle_line_xy[0])
+    #
+    # plot_pc(pc_origin, grasp_position, z_angle, pc, local_maxima, final_candidates)
+    #
+    # # Calculate the transformation matrix
+    # rotation_matrix = np.array([[-np.sin(z_angle), 0.0, -np.cos(z_angle)],
+    #                             [np.cos(z_angle), 0.0, -np.sin(z_angle)],
+    #                             [0.0, -1.0, 0.0 ]])
+    #
+    # transform_matrix = np.identity(4)
+    # transform_matrix[:3, :3] = rotation_matrix
+    # transform_matrix[:3, 3] = grasp_position
+
+    grasp_position_list = planner.inference(pc_origin, final_candidates, real_robot=True)
     # for now, just randomly sample one from the final candidates
     # grasp_position = final_candidates[np.random.choice(len(final_candidates))]
+    transform_matrix_list = []
+    for grasp_position in grasp_position_list:
+        # find out the corresponding pc
+        middle_line_xy = [0.0, 0.0]
+        grasp_point_xy = grasp_position[0:2]
+        # calculate the angle between the grasp position and the middle line
+        z_angle = np.arctan2(grasp_point_xy[1] - middle_line_xy[1], grasp_point_xy[0] - middle_line_xy[0])
 
-    # find out the corresponding pc
-    middle_line_xy = [0.0, 0.0]
-    grasp_point_xy = grasp_position[0:2]
-    # calculate the angle between the grasp position and the middle line
-    z_angle = np.arctan2(grasp_point_xy[1] - middle_line_xy[1], grasp_point_xy[0] - middle_line_xy[0])
+        plot_pc(pc_origin, grasp_position, z_angle, pc, local_maxima, final_candidates)
 
-    plot_pc(pc_origin, grasp_position, z_angle, pc, local_maxima, final_candidates)
-    
-    # Calculate the transformation matrix
-    rotation_matrix = np.array([[-np.sin(z_angle), 0.0, -np.cos(z_angle)],
-                                [np.cos(z_angle), 0.0, -np.sin(z_angle)],
-                                [0.0, -1.0, 0.0 ]])
-    
-    transform_matrix = np.identity(4)
-    transform_matrix[:3, :3] = rotation_matrix
-    transform_matrix[:3, 3] = grasp_position
+        # Calculate the transformation matrix
+        rotation_matrix = np.array([[-np.sin(z_angle), 0.0, -np.cos(z_angle)],
+                                    [np.cos(z_angle), 0.0, -np.sin(z_angle)],
+                                    [0.0, -1.0, 0.0]])
 
-    return transform_matrix
+        transform_matrix = np.identity(4)
+        transform_matrix[:3, :3] = rotation_matrix
+        transform_matrix[:3, 3] = grasp_position
+        transform_matrix_list.append(transform_matrix)
+    return transform_matrix_list

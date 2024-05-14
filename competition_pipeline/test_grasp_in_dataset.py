@@ -16,11 +16,12 @@ import numpy as np
 # from ClothCompetition.main_plan_e2e import Planner
 from competition_pipeline.utils import init_segmentation
 from ClothCompetition.main_plan_e2e import Planner
+import time
 
 current_dir = os.path.dirname(__file__)
-
+current_dir = '/home/yang/dataset'
 dataset_name = "cloth_competition_dataset_0000"
-random_sample = False
+random_sample = True
 
 if __name__ == "__main__":
     # Initialize predictor
@@ -28,7 +29,9 @@ if __name__ == "__main__":
     planner = Planner()
 
     # planner = Planner()
-    dataset_dir = os.path.join(current_dir, dataset_name)
+    # dataset_dir = os.path.join(current_dir, dataset_name)
+    dataset_dir = current_dir
+
     # Read all the directories in the dataset
     observation_dirs = [os.path.join(dataset_dir, d) for d in os.listdir(dataset_dir) if os.path.isdir(os.path.join(dataset_dir, d))]
     
@@ -38,6 +41,7 @@ if __name__ == "__main__":
 
     # Iterate through the observation directories
     for observation_dir in observation_dirs:
+        time_start = time.time()
         observation_folder = os.path.join(observation_dir, "observation_start")
         print("data_dir: ", observation_dir)    
         observation = load_competition_observation(observation_folder)
@@ -61,7 +65,7 @@ if __name__ == "__main__":
             point_cloud=point_cloud,
             planner = planner,
         )
-
+        grasp_pose = grasp_pose[0]
         # Give the pose an offset along the TCP frame z axis
         offset = np.array([0.0, 0.0, 0.05, 1.0])
         new_position = np.matmul(grasp_pose, offset)
@@ -72,6 +76,7 @@ if __name__ == "__main__":
         draw_pose(image_bgr, grasp_pose, camera_intrinsics, camera_pose_in_world, 0.1)
         image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
 
+        print("Time cost for sampling grasp: ", time.time()-time_start)
         plt.figure(figsize=(10, 5))
         plt.imshow(image_rgb)
         plt.title("Example grasp pose")

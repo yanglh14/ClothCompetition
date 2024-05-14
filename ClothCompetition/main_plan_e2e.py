@@ -196,8 +196,12 @@ class Planner(object):
             point_clouds_copy = point_clouds.copy()
             performance = self.vcdynamics.infer_performance(point_clouds_copy, candidate, real_robot)
             performances.append(performance)
-        best_pick_points_idx = np.argmax(np.array(performances))
+
+        # best_pick_points_idx = np.argmax(np.array(performances))
+        # list of candidates from the best to the worst
+        best_pick_points_idx = np.argsort(np.array(performances).squeeze())[::-1]
         return final_candidates[best_pick_points_idx]
+        # return final_candidates[best_pick_points_idx]
 def main(args):
     mp.set_start_method('forkserver', force=True)
 

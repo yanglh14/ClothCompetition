@@ -65,8 +65,8 @@ def segment_cloth(image, camera_pose_in_world, camera_intrinsics, camera_resolut
     input_point = image_points.squeeze().astype(np.int32)
 
     # Check if the depth of the center image point are lower than 0
-    center_image_point_pos = pc[int(center_image_points[0][0][0]), int(center_image_points[0][0][1])]
-    if center_image_point_pos[0] < 0.0:
+    center_image_point_pos = pc[int(center_image_points[0][0][1]), int(center_image_points[0][0][0])]
+    if center_image_point_pos[0] < 0.1:
         input_point = np.concatenate((input_point, np.array([center_image_points.squeeze().astype(np.int32)])), axis=0)
 
     # Offset the input point to the cropped image
