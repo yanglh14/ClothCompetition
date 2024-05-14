@@ -11,7 +11,22 @@ root_dir = os.path.dirname(current_dir)
 image_size_width = 480
 image_size_length = 960
 
-def segment_cloth(image, camera_pose_in_world, camera_intrinsics, camera_resolution):
+path_to_checkpoint = os.path.join(root_dir, "ClothCompetition", "pth", "sam_vit_l_0b3195.pth")
+model_type = "vit_l"
+device = "cpu" # "cuda" if torch.cuda.is_available() else "cpu"
+
+predictor = None
+
+def init_segmentation():
+    global predictor
+    time_start = time.time()
+    sam = sam_model_registry[model_type](checkpoint=path_to_checkpoint)
+    sam.to(device=device)
+    predictor = SamPredictor(sam)
+    print('init time cost1:', time.time()-time_start)
+
+def segment_cloth(image, camera_pose_in_world, camera_intrinsics, camera_resolution, pc):
+    global predictor
     # Crop the image first from the center
     image_col_start = int(camera_resolution[0] // 2 - image_size_width // 2)
     image_col_end = image_col_start + image_size_width
@@ -19,16 +34,6 @@ def segment_cloth(image, camera_pose_in_world, camera_intrinsics, camera_resolut
     image_row_end = image_row_start + image_size_length
 
     image_cropped = image[image_row_start:image_row_end, image_col_start:image_col_end]
-
-    path_to_checkpoint = os.path.join(root_dir, "ClothCompetition", "pth", "sam_vit_b_01ec64.pth")
-    model_type = "vit_b"
-    device = "cuda" # "cuda" if torch.cuda.is_available() else "cpu"
-
-    time_start = time.time()
-    sam = sam_model_registry[model_type](checkpoint=path_to_checkpoint)
-    sam.to(device=device)
-    predictor = SamPredictor(sam)
-    print('init time cost:', time.time()-time_start)
 
     time_start = time.time()
     predictor.set_image(image_cropped)
@@ -40,6 +45,7 @@ def segment_cloth(image, camera_pose_in_world, camera_intrinsics, camera_resolut
     # Select two points in world coordinates
     # that are very likely to be on the cloth
     cloth_points = np.array([[0.0, 0.0, 0.8], [0.0, 0.0, 0.7]])
+    cloth_center_point = np.array([[0.0, 0.0, 0.5]])
 
     # Calculate the corresponding pixel coordinates
     world_rotation_in_camera = camera_pose_in_world[:3, :3].T
@@ -49,12 +55,23 @@ def segment_cloth(image, camera_pose_in_world, camera_intrinsics, camera_resolut
                              tvec=world_translation_in_camera, 
                              cameraMatrix=camera_intrinsics,
                              distCoeffs=None)
+    center_image_points, _ = cv2.projectPoints(objectPoints=cloth_center_point, 
+                             rvec=world_rotation_in_camera,
+                             tvec=world_translation_in_camera, 
+                             cameraMatrix=camera_intrinsics,
+                             distCoeffs=None)
     
     # Convert the pixel coordinates to integers
     input_point = image_points.squeeze().astype(np.int32)
+
+    # Check if the depth of the center image point are lower than 0
+    center_image_point_pos = pc[int(center_image_points[0][0][0]), int(center_image_points[0][0][1])]
+    if center_image_point_pos[0] < 0.0:
+        input_point = np.concatenate((input_point, np.array([center_image_points.squeeze().astype(np.int32)])), axis=0)
+
     # Offset the input point to the cropped image
     input_point = input_point - np.array([image_col_start, image_row_start])
-    input_label = np.array([1, 1])
+    input_label = np.array([1]*input_point.shape[0])
     mask, _, _ = predictor.predict(
         point_coords=input_point,
         point_labels=input_label,
@@ -183,14 +200,15 @@ def plot_pc(pc, grasp_position, z_angle, filtered_pc, local_maxima, final_candid
     ax = fig.add_subplot(111, projection='3d')
 
     # Scatter plot using the x, y, and z coordinates and the color information
-    scatter_plot = ax.scatter(pc[:, 0], pc[:, 1], pc[:, 2], c=["b"]*pc.shape[0], s=10)  # s is the size of the points
+    scatter_plot = ax.scatter(pc[:, 0], pc[:, 1], pc[:, 2], c=["y"]*pc.shape[0], s=[10]*pc.shape[0])  # s is the size of the points
 
-    # Change the color of the points in filtered_pc to red
+    # Change the color of the points in filtered_pc to blue
     for point in filtered_pc:
         # Search for point in pc
         idx = np.where(np.all(pc == point, axis=1))[0][0]
         # Change color of this point
-        scatter_plot._facecolors[idx] = [1, 0, 0, 1]
+        scatter_plot._facecolors[idx] = [0, 0, 1, 1]
+        scatter_plot._sizes[idx] = 20
 
     # Change the color of the points in local_maxima to green
     for point in local_maxima:
@@ -198,13 +216,15 @@ def plot_pc(pc, grasp_position, z_angle, filtered_pc, local_maxima, final_candid
         idx = np.where(np.all(pc == point, axis=1))[0][0]
         # Change color of this point
         scatter_plot._facecolors[idx] = [0, 1, 0, 1]
+        scatter_plot._sizes[idx] = 20
 
-    # Change the color of the points in final_candidates to yellow
+    # Change the color of the points in final_candidates to red
     for point in final_candidates:
         # Search for point in pc
         idx = np.where(np.all(pc == point, axis=1))[0][0]
         # Change color of this point
-        scatter_plot._facecolors[idx] = [1, 1, 0, 1]
+        scatter_plot._facecolors[idx] = [1, 0, 0, 1]
+        scatter_plot._sizes[idx] = 20
 
     # highlight the grasp position with idx
     ax.scatter(grasp_position[0], grasp_position[1], grasp_position[2], c=[1, 0, 0], s=20)
