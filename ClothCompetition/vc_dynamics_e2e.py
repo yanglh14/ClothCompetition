@@ -35,6 +35,7 @@ class VCDynamics(object):
         for m in self.input_types:
             self.models[m] = GNN(args, decoder_output_dim=3, name=m, use_reward=False if self.train_mode == 'vsbl' else True)  # Predict acceleration
             lr = getattr(self.args, m + '_lr') if hasattr(self.args, m + '_lr') else self.args.lr
+            lr=0.01
             self.optims[m] = torch.optim.Adam(self.models[m].param(), lr=lr, betas=(self.args.beta1, 0.999))
             self.schedulers[m] = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optims[m], 'min', factor=0.8,
                                                                             patience=3, verbose=True)
