@@ -25,7 +25,7 @@ def init_segmentation():
     predictor = SamPredictor(sam)
     print('init time cost1:', time.time()-time_start)
 
-def segment_cloth(image, camera_pose_in_world, camera_intrinsics, camera_resolution):
+def segment_cloth(image, camera_pose_in_world, camera_intrinsics, camera_resolution, pc):
     global predictor
     # Crop the image first from the center
     image_col_start = int(camera_resolution[0] // 2 - image_size_width // 2)
@@ -45,6 +45,7 @@ def segment_cloth(image, camera_pose_in_world, camera_intrinsics, camera_resolut
     # Select two points in world coordinates
     # that are very likely to be on the cloth
     cloth_points = np.array([[0.0, 0.0, 0.8], [0.0, 0.0, 0.7]])
+    cloth_center_point = np.array([[0.0, 0.0, 0.5]])
 
     # Calculate the corresponding pixel coordinates
     world_rotation_in_camera = camera_pose_in_world[:3, :3].T
@@ -54,12 +55,23 @@ def segment_cloth(image, camera_pose_in_world, camera_intrinsics, camera_resolut
                              tvec=world_translation_in_camera, 
                              cameraMatrix=camera_intrinsics,
                              distCoeffs=None)
+    center_image_points, _ = cv2.projectPoints(objectPoints=cloth_center_point, 
+                             rvec=world_rotation_in_camera,
+                             tvec=world_translation_in_camera, 
+                             cameraMatrix=camera_intrinsics,
+                             distCoeffs=None)
     
     # Convert the pixel coordinates to integers
     input_point = image_points.squeeze().astype(np.int32)
+
+    # Check if the depth of the center image point are lower than 0
+    center_image_point_pos = pc[int(center_image_points[0][0][0]), int(center_image_points[0][0][1])]
+    if center_image_point_pos[0] < 0.0:
+        input_point = np.concatenate((input_point, np.array([center_image_points.squeeze().astype(np.int32)])), axis=0)
+
     # Offset the input point to the cropped image
     input_point = input_point - np.array([image_col_start, image_row_start])
-    input_label = np.array([1, 1])
+    input_label = np.array([1]*input_point.shape[0])
     mask, _, _ = predictor.predict(
         point_coords=input_point,
         point_labels=input_label,

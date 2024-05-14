@@ -15,7 +15,7 @@ def sample_grasp(camera_pose_in_world,
                  planner):
     '''Give the observations required, return the grasp pose'''
     # Segment the cloth first
-    mask = segment_cloth(image_rgb, camera_pose_in_world, camera_intrinsics, camera_resolution)
+    mask = segment_cloth(image_rgb, camera_pose_in_world, camera_intrinsics, camera_resolution, pc=point_cloud)
     # mask = cv2.imread('../log/mask_comp.png', cv2.IMREAD_GRAYSCALE)
     # current_dir = os.path.dirname(__file__)
     # log_dir = os.path.join(current_dir, "log")
