@@ -391,6 +391,9 @@ class VCDynamics(object):
             point_clouds[:,0] = -point_clouds[:,0]
             point_clouds[:,2] = -point_clouds[:,2]
             vox_pc = point_clouds
+            candidate = candidate[[0,2,1]]
+            candidate[0] = -candidate[0]
+            candidate[2] = -candidate[2]
             picked_positions = np.concatenate([np.array([[0,0.9,0]]),candidate.reshape(1,3)],axis =0)
             vox_pc = np.concatenate([vox_pc, picked_positions], axis=0, dtype=np.float32)
             picked_points_idx = np.array([len(vox_pc) - 2, len(vox_pc) - 1])
