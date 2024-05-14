@@ -49,14 +49,14 @@ def sample_grasp(camera_pose_in_world,
     if len(idx_arr) > 0:
 
         point_candidates = pc[idx_arr]
-        nbrs = NearestNeighbors(n_neighbors=4, algorithm='auto').fit(point_candidates)
+        nbrs = NearestNeighbors(n_neighbors=5, algorithm='auto').fit(point_candidates)
         distances, indices = nbrs.kneighbors(point_candidates)
 
         local_maxima = []
 
         for i in range(point_candidates.shape[0]):
             x_center = point_candidates[i, 0]
-            neighbor_indices = indices[i, 1:]  # 排除自身
+            neighbor_indices = indices[i, 1:]  # exclude the point itself
             all_neighbors = point_candidates[neighbor_indices]
 
             if np.all(x_center < all_neighbors[:, 0]):
@@ -91,10 +91,9 @@ def sample_grasp(camera_pose_in_world,
         else:
             final_candidates = np.concatenate((final_candidates, selected_candidates), axis=0)
 
-    # TODO: use dynamic model to determine the best grasp position
-    best_grasp_position = planner.inference(pc_origin, final_candidates, real_robot=True)
+    grasp_position = planner.inference(pc_origin, final_candidates, real_robot=True)
     # for now, just randomly sample one from the final candidates
-    grasp_position = final_candidates[np.random.choice(len(final_candidates))]
+    # grasp_position = final_candidates[np.random.choice(len(final_candidates))]
 
     # find out the corresponding pc
     middle_line_xy = [0.0, 0.0]

@@ -155,14 +155,16 @@ class RewardModel(torch.nn.Module):
         self.global_size = global_size
         self.hidden_size = hidden_size
         self.model = torch.nn.Sequential(
-            torch.nn.Linear(self.global_size, self.hidden_size),
+            torch.nn.Linear(self.global_size+self.node_size, self.hidden_size),
             torch.nn.ReLU(inplace=True),
             torch.nn.Linear(self.hidden_size, self.hidden_size),
             torch.nn.ReLU(inplace=True),
             torch.nn.Linear(self.hidden_size, 1))
 
     def forward(self, node_feat, global_feat, batch):
-        out = self.model(global_feat)
+        node_feat = torch_scatter.scatter_max(node_feat, batch, dim=0)[0]
+        model_input = torch.cat([node_feat, global_feat], dim=1)
+        out = self.model(model_input)
         return out
 
 
