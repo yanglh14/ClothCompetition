@@ -183,14 +183,15 @@ def plot_pc(pc, grasp_position, z_angle, filtered_pc, local_maxima, final_candid
     ax = fig.add_subplot(111, projection='3d')
 
     # Scatter plot using the x, y, and z coordinates and the color information
-    scatter_plot = ax.scatter(pc[:, 0], pc[:, 1], pc[:, 2], c=["b"]*pc.shape[0], s=10)  # s is the size of the points
+    scatter_plot = ax.scatter(pc[:, 0], pc[:, 1], pc[:, 2], c=["y"]*pc.shape[0], s=[10]*pc.shape[0])  # s is the size of the points
 
-    # Change the color of the points in filtered_pc to red
+    # Change the color of the points in filtered_pc to blue
     for point in filtered_pc:
         # Search for point in pc
         idx = np.where(np.all(pc == point, axis=1))[0][0]
         # Change color of this point
-        scatter_plot._facecolors[idx] = [1, 0, 0, 1]
+        scatter_plot._facecolors[idx] = [0, 0, 1, 1]
+        scatter_plot._sizes[idx] = 20
 
     # Change the color of the points in local_maxima to green
     for point in local_maxima:
@@ -198,13 +199,15 @@ def plot_pc(pc, grasp_position, z_angle, filtered_pc, local_maxima, final_candid
         idx = np.where(np.all(pc == point, axis=1))[0][0]
         # Change color of this point
         scatter_plot._facecolors[idx] = [0, 1, 0, 1]
+        scatter_plot._sizes[idx] = 20
 
-    # Change the color of the points in final_candidates to yellow
+    # Change the color of the points in final_candidates to red
     for point in final_candidates:
         # Search for point in pc
         idx = np.where(np.all(pc == point, axis=1))[0][0]
         # Change color of this point
-        scatter_plot._facecolors[idx] = [1, 1, 0, 1]
+        scatter_plot._facecolors[idx] = [1, 0, 0, 1]
+        scatter_plot._sizes[idx] = 20
 
     # highlight the grasp position with idx
     ax.scatter(grasp_position[0], grasp_position[1], grasp_position[2], c=[1, 0, 0], s=20)
