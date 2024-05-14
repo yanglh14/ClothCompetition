@@ -21,12 +21,19 @@ def segment_cloth(image, camera_pose_in_world, camera_intrinsics, camera_resolut
     image_cropped = image[image_row_start:image_row_end, image_col_start:image_col_end]
 
     path_to_checkpoint = os.path.join(root_dir, "ClothCompetition", "pth", "sam_vit_b_01ec64.pth")
-    model_type = "vit_b" # "vit_h"
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model_type = "vit_b"
+    device = "cuda" # "cuda" if torch.cuda.is_available() else "cpu"
+
+    time_start = time.time()
     sam = sam_model_registry[model_type](checkpoint=path_to_checkpoint)
     sam.to(device=device)
     predictor = SamPredictor(sam)
+    print('init time cost:', time.time()-time_start)
+
+    time_start = time.time()
     predictor.set_image(image_cropped)
+    print('set image time cost1:', time.time()-time_start)
+
     # input_point = np.array([[345, 226]])
     # input_label = np.array([1])
 
@@ -75,16 +82,12 @@ def segment_cloth(image, camera_pose_in_world, camera_intrinsics, camera_resolut
     cv2.waitKey()
 
     # Save image and mask
-    # current_dir = os.path.dirname(__file__)
-    # log_dir = os.path.join(current_dir, "log")
-    # current_time = int(time.time())
-    # cv2.imwrite(os.path.join(log_dir, "raw_image_{}.jpg".format(current_time)), image)
-    # cv2.imwrite(os.path.join(log_dir, "cropped_image_{}.jpg".format(current_time)), image_display)
-    # cv2.imwrite(os.path.join(log_dir, "mask_{}.jpg".format(current_time)), mask)  
-
     current_dir = os.path.dirname(__file__)
     log_dir = os.path.join(current_dir, "log")
-    cv2.imwrite(os.path.join(log_dir, "mask.png"), mask)
+    current_time = int(time.time())
+    cv2.imwrite(os.path.join(log_dir, "raw_image_{}.jpg".format(current_time)), image)
+    cv2.imwrite(os.path.join(log_dir, "cropped_image_{}.jpg".format(current_time)), image_display)
+    cv2.imwrite(os.path.join(log_dir, "mask_{}.jpg".format(current_time)), mask)  
 
     return mask
 

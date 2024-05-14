@@ -13,12 +13,15 @@ from cloth_tools.dataset.bookkeeping import datetime_for_filename
 from pathlib import Path
 import json
 import numpy as np
+import time
+from ClothCompetition.main_plan_e2e import Planner
 
 current_dir = os.path.dirname(__file__)
 
 in_competition = False
 
 if __name__ == "__main__":
+    planner = Planner()
     if in_competition:
         # TODO: ask for IP address
         # Read data from the competition server
@@ -28,10 +31,9 @@ if __name__ == "__main__":
         observation_dir, sample_id = download_latest_observation(dataset_dir, server_url)
     else:
         # Read data from a specific folder
-        observation_dir = os.path.join(current_dir, "sample_000016", "observation_start")
-
+        observation_dir = os.path.join(current_dir, "sample_000000", "observation_start")
+    time_start= time.time()
     observation = load_competition_observation(observation_dir)
-
     # Read camera information
     camera_pose_in_world = observation.camera_pose_in_world
     camera_intrinsics = observation.camera_intrinsics
@@ -48,7 +50,8 @@ if __name__ == "__main__":
         camera_intrinsics=camera_intrinsics,
         camera_resolution=camera_resolution,
         image_rgb=image_rgb,
-        point_cloud=point_cloud
+        point_cloud=point_cloud,
+        planner = planner,
     )
 
     # Give the pose an offset along the TCP frame z axis
@@ -89,3 +92,4 @@ if __name__ == "__main__":
     if in_competition:
         team_name = "test_greater_bay"
         upload_grasp(grasp_pose_file, team_name, sample_id, server_url) 
+    print('time cost:', time.time()-time_start)

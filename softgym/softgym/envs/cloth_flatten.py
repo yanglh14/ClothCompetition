@@ -104,7 +104,7 @@ class ClothFlattenEnv(ClothEnv):
         px = np.linspace(0, cloth_dimx * self.cloth_particle_radius, cloth_dimx)
         py = np.linspace(0, cloth_dimz * self.cloth_particle_radius, cloth_dimz)
         xx, yy = np.meshgrid(px, py)
-        new_pos = np.empty(shape=(N, 4), dtype=np.float)
+        new_pos = np.empty(shape=(N, 4), dtype=np.float32)
         new_pos[:, 0] = xx.flatten()
         new_pos[:, 1] = self.cloth_particle_radius
         new_pos[:, 2] = yy.flatten()

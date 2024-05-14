@@ -342,49 +342,60 @@ class VCDynamics(object):
         picker_pos = new_picker_pos
         return pc_pos, velocity_his, picker_pos
 
-    def infer_performance(self):
-        data_dir = './data/base_v5/train/'
-        # load data
-        idx_rollout = 0
-        idx_timestep = 0
-        idx_end = 1
-        data_names = ['positions',  # Position and velocity of each simulation particle, N x 3 float
-                      'picker_position',  # Position of all pickers
-                      'scene_params',  # [cloth_particle_radius, xdim, ydim, config_id]
-                      'downsample_idx',  # Indexes of the down-sampled particles
-                      'downsample_observable_idx',
-                      'observable_idx',  # Indexes of the observed particles
-                      'pointcloud',
-                      'picked_particles']  # point cloud position by back-projecting the depth image
-        data_cur = load_data(data_dir, idx_rollout, idx_timestep, data_names)
-        data_end = load_data(data_dir, idx_rollout, idx_end, data_names)
+    def infer_performance(self, point_clouds_copy, candidate, real_robot):
+        if not real_robot:
+            data_dir = './data/base_v5/train/'
+            # load data
+            idx_rollout = 0
+            idx_timestep = 0
+            idx_end = 1
+            data_names = ['positions',  # Position and velocity of each simulation particle, N x 3 float
+                          'picker_position',  # Position of all pickers
+                          'scene_params',  # [cloth_particle_radius, xdim, ydim, config_id]
+                          'downsample_idx',  # Indexes of the down-sampled particles
+                          'downsample_observable_idx',
+                          'observable_idx',  # Indexes of the observed particles
+                          'pointcloud',
+                          'picked_particles']  # point cloud position by back-projecting the depth image
+            data_cur = load_data(data_dir, idx_rollout, idx_timestep, data_names)
+            data_end = load_data(data_dir, idx_rollout, idx_end, data_names)
 
-        pointcloud = data_cur['pointcloud']
-        vox_pc = voxelize_pointcloud(pointcloud, self.args.voxel_size)
+            pointcloud = data_cur['pointcloud']
+            vox_pc = voxelize_pointcloud(pointcloud, self.args.voxel_size)
 
-        partial_particle_pos = data_cur['positions'][data_cur['downsample_idx']][
-            data_cur['downsample_observable_idx']]
+            partial_particle_pos = data_cur['positions'][data_cur['downsample_idx']][
+                data_cur['downsample_observable_idx']]
 
-        # find the grapsed points
-        picked_paticles = data_cur['picked_particles']
-        picked_positions = data_cur['positions'][picked_paticles]
-        vox_pc = np.concatenate([vox_pc, picked_positions], axis=0)
-        picked_points_idx = np.array([len(vox_pc) - 2, len(vox_pc) - 1])
+            # find the grapsed points
+            picked_paticles = data_cur['picked_particles']
+            picked_positions = data_cur['positions'][picked_paticles]
+            vox_pc = np.concatenate([vox_pc, picked_positions], axis=0)
+            picked_points_idx = np.array([len(vox_pc) - 2, len(vox_pc) - 1])
 
-        # Use clean observable point cloud for bi-partite matching
-        # particle_pc_mapped_idx: For each point in pc, give the index of the closest point on the visible downsample mesh
-        vox_pc, partial_pc_mapped_idx = get_observable_particle_index_3(vox_pc, partial_particle_pos,
-                                                                        threshold=self.args.voxel_size)
+            # Use clean observable point cloud for bi-partite matching
+            # particle_pc_mapped_idx: For each point in pc, give the index of the closest point on the visible downsample mesh
+            vox_pc, partial_pc_mapped_idx = get_observable_particle_index_3(vox_pc, partial_particle_pos,
+                                                                            threshold=self.args.voxel_size)
 
-        partial_pc_mapped_idx = data_cur['downsample_observable_idx'][
-            partial_pc_mapped_idx]  # Map index from the observable downsampled mesh to the downsampled mesh
+            partial_pc_mapped_idx = data_cur['downsample_observable_idx'][
+                partial_pc_mapped_idx]  # Map index from the observable downsampled mesh to the downsampled mesh
 
-        downsample_idx = data_cur['downsample_idx']
-        full_pos_cur = data_cur['positions']
+            downsample_idx = data_cur['downsample_idx']
+            full_pos_cur = data_cur['positions']
 
-        gt_reward_crt = torch.FloatTensor([pc_reward_model(full_pos_cur[downsample_idx])])
-        gt_reward_end = torch.FloatTensor([pc_reward_model(data_end['positions'][downsample_idx])])
-        normalized_vox_pc = vox_pc - np.mean(vox_pc, axis=0)
+            gt_reward_crt = torch.FloatTensor([pc_reward_model(full_pos_cur[downsample_idx])])
+            gt_reward_end = torch.FloatTensor([pc_reward_model(data_end['positions'][downsample_idx])])
+            normalized_vox_pc = vox_pc - np.mean(vox_pc, axis=0)
+        else:
+            point_clouds = point_clouds_copy[:,[0,2,1]]
+            point_clouds[:,0] = -point_clouds[:,0]
+            point_clouds[:,2] = -point_clouds[:,2]
+            vox_pc = point_clouds
+            picked_positions = np.concatenate([np.array([[0,0.9,0]]),candidate.reshape(1,3)],axis =0)
+            vox_pc = np.concatenate([vox_pc, picked_positions], axis=0, dtype=np.float32)
+            picked_points_idx = np.array([len(vox_pc) - 2, len(vox_pc) - 1])
+
+            normalized_vox_pc = vox_pc - np.mean(vox_pc, axis=0)
 
         data = {'pointcloud': normalized_vox_pc,
                 'vel_his': np.zeros((len(vox_pc), 15)),
@@ -415,3 +426,4 @@ class VCDynamics(object):
         with torch.no_grad():
             pred = self.models['vsbl'](inputs)
             pred_reward = pred['reward_end'].cpu().numpy()
+        return pred_reward

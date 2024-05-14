@@ -11,7 +11,8 @@ def sample_grasp(camera_pose_in_world,
                  camera_intrinsics,
                  camera_resolution,
                  image_rgb,
-                 point_cloud):
+                 point_cloud,
+                 planner):
     '''Give the observations required, return the grasp pose'''
     # Segment the cloth first
     mask = segment_cloth(image_rgb, camera_pose_in_world, camera_intrinsics, camera_resolution)
@@ -27,7 +28,7 @@ def sample_grasp(camera_pose_in_world,
     z_offset = 0.3
     # sr_Y_min, sr_Y_max = self.Y_range
     # set region of interest (roi)
-    pc = pc[pc[:, 0] < 0.2]
+    pc = pc[pc[:, 0] < 0.05]
     x = pc[:, 0]
     y = pc[:, 1]
     z = pc[:, 2]
@@ -91,6 +92,7 @@ def sample_grasp(camera_pose_in_world,
             final_candidates = np.concatenate((final_candidates, selected_candidates), axis=0)
 
     # TODO: use dynamic model to determine the best grasp position
+    best_grasp_position = planner.inference(pc_origin, final_candidates, real_robot=True)
     # for now, just randomly sample one from the final candidates
     grasp_position = final_candidates[np.random.choice(len(final_candidates))]
 

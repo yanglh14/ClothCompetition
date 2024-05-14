@@ -172,7 +172,32 @@ def get_rgbd_and_mask(env, sensor_noise):
 
     return depth.copy(), rgb, depth
 
+class Planner(object):
+    def __init__(self):
+        args = get_default_args()
+        mp.set_start_method('forkserver', force=True)
 
+        # Configure logger
+        configure_logger(args.log_dir, args.exp_name)
+        # Configure seed
+        configure_seed(args.seed)
+        with open(osp.join(logger.get_dir(), 'variant.json'), 'w') as f:
+            json.dump(args.__dict__, f, indent=2, sort_keys=True)
+
+        # create env
+        env, render_env = None, None
+
+        # load vcdynamics
+        vcd_edge = load_edge_model(args.edge_model_path, env)
+        self.vcdynamics = load_dynamics_model(args, env, vcd_edge)
+    def inference(self, point_clouds, final_candidates, real_robot=False):
+        performances =[]
+        for candidate in final_candidates:
+            point_clouds_copy = point_clouds.copy()
+            performance = self.vcdynamics.infer_performance(point_clouds_copy, candidate, real_robot)
+            performances.append(performance)
+        best_pick_points_idx = np.argmax(np.array(performances))
+        return final_candidates[best_pick_points_idx]
 def main(args):
     mp.set_start_method('forkserver', force=True)
 

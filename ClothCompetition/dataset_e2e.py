@@ -560,7 +560,7 @@ class ClothDataset(Dataset):
         picked_pos = []  # Position of the picked particle
         picked_velocity = []  # Velocity of the picked particle
 
-        action = (data['action'] * self.env.action_repeat).reshape([-1, 4])  # scale to the real action
+        action = (data['action'] * 1).reshape([-1, 4])  # scale to the real action
 
         vox_pc, picker_pos, velocity_his = data['pointcloud'], data['picker_position'], data['vel_his']
 
@@ -588,7 +588,7 @@ class ClothDataset(Dataset):
                 else:
                     picked_particles[i] = -1
         else:
-            for i in range(self.env.action_tool.num_picker):
+            for i in range(2):
                 new_picker_pos[i, :] = picker_pos[i, :] + action[i, :3]
 
                 if pick_flag[i]:
@@ -639,7 +639,8 @@ class ClothDataset(Dataset):
         # Calculate undirected edge list and corresponding relative edge attributes (distance vector + magnitude)
         vox_pc, velocity_his, observable_particle_idx = data['pointcloud'], data['vel_his'], data[
             'partial_pc_mapped_idx']
-        _, cloth_xdim, cloth_ydim, _ = data['scene_params']
+        if 'scene_params' in data.keys():
+            _, cloth_xdim, cloth_ydim, _ = data['scene_params']
         rest_dist = data.get('rest_dist', None)
 
         point_tree = scipy.spatial.cKDTree(vox_pc)

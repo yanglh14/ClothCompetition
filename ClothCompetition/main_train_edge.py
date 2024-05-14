@@ -39,7 +39,7 @@ def get_default_args():
     parser.add_argument('--neighbor_radius', type=float, default=0.045, help="Radius for connecting nearby edges")
     parser.add_argument('--collect_data_delta_move_min', type=float, default=0.15)
     parser.add_argument('--collect_data_delta_move_max', type=float, default=0.4)
-    parser.add_argument('--proc_layer', type=int, default=10, help="Number of processor layers in GNN")
+    parser.add_argument('--proc_layer', type=int, default=5, help="Number of processor layers in GNN")
     parser.add_argument('--state_dim', type=int, default=3,
                         help="Dim of node feature input. Computed based on n_his: 3 x 5 + 1 dist to ground + 2 one-hot encoding of picked particle")
     parser.add_argument('--relation_dim', type=int, default=4, help="Dim of edge feature input")
