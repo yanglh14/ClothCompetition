@@ -35,7 +35,7 @@ def sample_grasp(camera_pose_in_world,
     pc_origin = pc.copy()
     
     z_min, z_max = np.min(z), np.max(z)
-    if z_max - z_min <= z_offset:
+    if z_max - z_min <= z_offset+0.2:
         # if z_max - z_min is too small, set z_offset to 0.5*diff
         z_offset = (z_max - z_min) * 0.5
     z_max = z_max - z_offset # manually set max height for grasping
@@ -49,7 +49,7 @@ def sample_grasp(camera_pose_in_world,
     if len(idx_arr) > 0:
 
         point_candidates = pc[idx_arr]
-        nbrs = NearestNeighbors(n_neighbors=5, algorithm='auto').fit(point_candidates)
+        nbrs = NearestNeighbors(n_neighbors=4, algorithm='auto').fit(point_candidates)
         distances, indices = nbrs.kneighbors(point_candidates)
 
         local_maxima = []

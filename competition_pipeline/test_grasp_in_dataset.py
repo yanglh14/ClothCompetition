@@ -15,6 +15,7 @@ import json
 import numpy as np
 # from ClothCompetition.main_plan_e2e import Planner
 from competition_pipeline.utils import init_segmentation
+from ClothCompetition.main_plan_e2e import Planner
 
 current_dir = os.path.dirname(__file__)
 
@@ -24,6 +25,7 @@ random_sample = False
 if __name__ == "__main__":
     # Initialize predictor
     init_segmentation()
+    planner = Planner()
 
     # planner = Planner()
     dataset_dir = os.path.join(current_dir, dataset_name)
@@ -57,7 +59,7 @@ if __name__ == "__main__":
             camera_resolution=camera_resolution,
             image_rgb=image_rgb,
             point_cloud=point_cloud,
-            planner = None,
+            planner = planner,
         )
 
         # Give the pose an offset along the TCP frame z axis

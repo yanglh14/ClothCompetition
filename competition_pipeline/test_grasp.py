@@ -15,13 +15,18 @@ import json
 import numpy as np
 import time
 from ClothCompetition.main_plan_e2e import Planner
+from competition_pipeline.utils import init_segmentation
 
 current_dir = os.path.dirname(__file__)
 
 in_competition = False
 
 if __name__ == "__main__":
+    init_segmentation()
+
     planner = Planner()
+    time_start= time.time()
+
     if in_competition:
         # TODO: ask for IP address
         # Read data from the competition server
@@ -31,8 +36,7 @@ if __name__ == "__main__":
         observation_dir, sample_id = download_latest_observation(dataset_dir, server_url)
     else:
         # Read data from a specific folder
-        observation_dir = os.path.join(current_dir, "sample_000000", "observation_start")
-    time_start= time.time()
+        observation_dir = os.path.join(current_dir, "cloth_competition_dataset_0000/sample_000002", "observation_start")
     observation = load_competition_observation(observation_dir)
     # Read camera information
     camera_pose_in_world = observation.camera_pose_in_world
